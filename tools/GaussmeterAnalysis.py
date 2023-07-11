@@ -9,9 +9,10 @@ import pyqtgraph as pg
 # from pyqtgraph.Qt import QtCore
 from scipy.signal import savgol_filter
 from copy import deepcopy
+from time import time
 
-
-class TimeplotPyQt:
+# TODO: Remove (as it has been moved to separate file
+class TimeplotPyQt_depricated:
     def __init__(self):
         self.app = pg.mkQApp("Timeplot")
         self.view = pg.GraphicsView()
@@ -274,36 +275,52 @@ class EulerRotation:
     def __init__(self):
         pass
 
-    def rx(self, angle):
+    def rx(self, angle, deg=True):
+        if deg:
+            angle *= np.pi / 180
         return np.array([[1,             0,              0],
                          [0, np.cos(angle), -np.sin(angle)],
                          [0, np.sin(angle),  np.cos(angle)]])
 
-    def ry(self, angle):
+    def ry(self, angle, deg=True):
+        if deg:
+            angle *= np.pi / 180
         return np.array([[ np.cos(angle), 0, np.sin(angle)],
                          [             0, 1,             0],
                          [-np.sin(angle), 0, np.cos(angle)]])
 
-    def rz(self, angle):
+    def rz(self, angle, deg=True):
+        if deg:
+            angle *= np.pi / 180
         return np.array([[np.cos(angle), -np.sin(angle), 0],
                          [np.sin(angle),  np.cos(angle), 0],
                          [            0,              0, 1]])
 
     def rotateX(self, vector, angle, deg=True):
-        if deg:
-            angle *= np.pi / 180
-        return np.dot(self.rx(angle), vector)
+        return np.dot(self.rx(angle, deg=deg), vector)
 
     def rotateY(self, vector, angle, deg=True):
-        if deg:
-            angle *= np.pi / 180
-        return np.dot(self.ry(angle), vector)
+        return np.dot(self.ry(angle, deg=deg), vector)
 
     def rotateZ(self, vector, angle, deg=True):
-        if deg:
-            angle *= np.pi / 180
-        return np.dot(self.rz(angle), vector)
+        return np.dot(self.rz(angle, deg=deg), vector)
 
+def data_rotate(data, rotation_matrix):
+    for i in range(len(data[0])):
+        vtemp = np.dot(rotation_matrix, np.array([data[1][i],
+                                                  data[2][i],
+                                                  data[3][i]]))
+        data[1][i], data[2][i], data[3][i] = vtemp[0], vtemp[1], vtemp[2]
+    return data
+
+def data_add_vector(data, vector):
+    assert len(vector) == len(data)-1
+    # Loops over entire length of dataset
+    for i in range(len(data[0])):
+        # Loops over separate data lanes, skipping the first
+        for i_data in range(len(data)-1):
+            data[i_data+1][i] += vector[i_data]
+    return data
 
 def read_data(filename, header=False, len_header=9):
     with open(filename, 'r') as f:
@@ -394,47 +411,10 @@ def zipBA(dataB):
 #                 [np.double(tt), float(xx), float(yy), float(zz)]
 #         return [t, x, y, z]
 
-def time_plot(data, ylim=[-100, 100], 
-              title="Title",
-              labelx="X", labely="Y", labelz="Z",
-              ):
-    fig = plt.figure(figsize=(8, 8))
-    gs = GridSpec(1,1)
-    
-    data_normalized = []
-    for i in range(len(data[0])):
-        data_normalized.append(data[0][i]-data[0][0])
-    
-    ax2 = fig.add_subplot(gs[0,0])
-    ax2.set_ylim(ylim[0], ylim[1])
-    # ax2.plot(data[0], data[1], color='red', label = labelx)
-    # ax2.plot(data[0], data[2], color='green', label = labely)
-    # ax2.plot(data[0], data[3], color='blue', label = labelz)  
-    
-    ax2.plot(data_normalized, data[1], color='red', label = labelx)
-    ax2.plot(data_normalized, data[2], color='green', label = labely)
-    ax2.plot(data_normalized, data[3], color='blue', label = labelz)  
-    
-    plt.legend()
-    plt.title(title)
-    plt.xlabel("Time [s]")
-    plt.ylabel("B [uT]")
-    
-    start = datetime.utcfromtimestamp(data[0][0]).strftime('%Y-%m-%d %H:%M:%S')
-    end = datetime.utcfromtimestamp(data[0][-1]).strftime('%Y-%m-%d %H:%M:%S')
-    o_x = round(data_normalized[-1]/8)
-    o_y = round((ylim[1]-ylim[0])/12)
-    o_x = 0
-    # o_y = 0
-    plt.annotate(start, 
-                 (data_normalized[0], ylim[0]), 
-                 (data_normalized[0]-o_x, ylim[0]-o_y))
-    plt.annotate(end, 
-                 (data_normalized[-1], ylim[0]),
-                 (data_normalized[-1]-o_x, ylim[0]-o_y))
 
 
-def time_plot2(data, ylim=[-100, 100]):
+def time_plot(data, ylim=[-100, 100]):
+
     fig = plt.figure(figsize=(8, 8))
     gs = GridSpec(6,1)
 
@@ -465,6 +445,8 @@ def time_plot2(data, ylim=[-100, 100]):
     ax2.plot(data[0], data[1], color='red')
     ax2.plot(data[0], data[2], color='green')
     ax2.plot(data[0], data[3], color='blue')
+
+    plt.show()
 
 def analyse_rate(data, n_samples, sr, verbose=0):
     """Analyzes the time between each sample from the UNIX datapoints, and 
