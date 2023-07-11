@@ -194,7 +194,7 @@ class TimeplotPyQt:
                 angle=0,
                 label="Min: {value:.2f} uT",
                 pen=pg.mkPen(color=self.pen_rgb[i]),
-                pos=p_range[i][0],
+                pos=min(data[i+1]),
                 movable=False,
                 labelOpts={"position": 0.05,
                            "color": self.pen_rgb[i],
@@ -207,7 +207,7 @@ class TimeplotPyQt:
                 angle=0,
                 label="Max: {value:.2f} uT",
                 pen=pg.mkPen(color=self.pen_rgb[i]),
-                pos=p_range[i][1],
+                pos=max(data[i+1]),
                 movable=False,
                 labelOpts={"position": 0.05,
                            "color": self.pen_rgb[i],
@@ -245,11 +245,11 @@ class TimeplotPyQt:
 
         self.view.show()
 
-        # Executing PyQtGraph
-        pg.exec()
-
         # Save the graph layout, if necessary
         if self.save_plot_toggle:
             exporter = pg.exporters.ImageExporter(self.gl.scene())
             exporter.parameters()['width'] = self.save_plot_width
             exporter.export(self.save_plot_filename)
+
+        # Executing PyQtGraph
+        pg.exec()
