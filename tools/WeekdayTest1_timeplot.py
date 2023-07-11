@@ -1,15 +1,11 @@
 # Imports ====================================================================
 import numpy as np
-
 import pyqtgraph as pg
 import pyqtgraph.exporters
-
 from datetime import datetime
 
 from local_emf import local_emf
-
 from TimeplotPyQt import TimeplotPyQt
-
 from GaussmeterAnalysis import (
     EulerRotation,
     read_data,
@@ -28,7 +24,6 @@ R_S2C = EulerRotation().rx(-180, deg=True)
 # Rotate EMF vector from geographic frame (G) into cage frame (C)
 local_emf = np.dot(R_G2C, local_emf())
 
-
 # Data processing ============================================================
 filename = "WeekdayTest_2023-07-03_10.41.03_SPARSE50.dat"
 
@@ -44,14 +39,15 @@ data = data_rotate(data, R_S2C)
 # Normalize the data (in C frame) with respect to the   EMF (in C frame):
 data = data_add_vector(data, -local_emf)
 
-# Set up plot
+# Set up plot ================================================================
 plot_title = """
 <h3><b> Magnetic field components of a weekday test performed from {} to {}.
 </b> <br> Data fetched from file:  <samp> {} </samp> </h3>
-""".format(datetime.utcfromtimestamp(data[0][0]).strftime("%d/%m/%y %H:%M:%S"),
-           datetime.utcfromtimestamp(data[0][-1]).strftime("%d/%m/%y %H:%M:%S"),
-           filename)
-
+""".format(
+    datetime.utcfromtimestamp(data[0][0]).strftime("%d/%m/%y %H:%M:%S"),
+    datetime.utcfromtimestamp(data[0][-1]).strftime("%d/%m/%y %H:%M:%S"),
+    filename
+)
 side_label = "<h3>Magnetic field component B (uT)<h3>"
 
 plot_filename = "WeekdayTest1_timeplot.png"
@@ -65,7 +61,3 @@ plot_object.save_plot(plot_filename)
 
 # Generate plot
 plot_object.timeplot_pyqtgraph(data)
-
-
-
-# Save image
