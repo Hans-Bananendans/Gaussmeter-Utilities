@@ -1,3 +1,6 @@
+# Temporary anti-image spam:
+tools/*.png
+
 # Prevent output files from syncing
 *.dat
 output_*
