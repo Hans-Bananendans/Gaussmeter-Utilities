@@ -1,0 +1,9 @@
+CoilsWide:
+X: ~1700 mm
+Y: ~1700 mm
+Z: ~1835 mm
+
+CoilsClose:
+X: ~560 mm
+Y: ~560 mm
+Z: ~640 mm

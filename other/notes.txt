@@ -1,0 +1,29 @@
+notes:
+DAQmxCfgSampClkTiming (TaskHandle taskHandle, const char source[], float64 rate, int32 activeEdge, int32 sampleMode, uInt64 sampsPerChanToAcquire);
+
+Allows you to set a source of the sample clock, the rate of it, and the number of samples to acquire.
+https://documentation.help/NI-DAQmx-C-Functions/DAQmxCfgSampClkTiming.html
+
+
+
+DAQmxReadAnalogF64(TaskHandle taskHandle, int32 numSampsPerChan, float64 timeout, bool32 fillMode, float64 readArray[], uInt32 arraySizeInSamps, int32 *sampsPerChanRead, bool32 *reserved);
+
+Reads multiple floating-point samples from a task that contains one or more analog input channels.
+https://documentation.help/NI-DAQmx-C-Functions/DAQmxReadAnalogF64.html
+
+
+
+DAQmxCreateAIVoltageChan (TaskHandle taskHandle, const char physicalChannel[], const char nameToAssignToChannel[], int32 terminalConfig, float64 minVal, float64 maxVal, int32 units, const char customScaleName[]);
+
+Creates channel(s) to measure voltage and adds the channel(s) to the task you specify with taskHandle.
+https://documentation.help/NI-DAQmx-C-Functions/DAQmxCreateAIVoltageChan.html
+
+
+
+DAQmxCreateTask (const char taskName[], TaskHandle *taskHandle);
+
+Creates a task . If you use this function to create a task, you must use DAQmxClearTask to destroy it.
+
+If you use this function within a loop, NI-DAQmx creates a new task in each iteration of the loop. Use the DAQmxClearTask function within the loop after you finish with the task to avoid allocating unnecessary memory.
+
+https://documentation.help/NI-DAQmx-C-Functions/DAQmxCreateTask.html
