@@ -436,6 +436,9 @@ class VectorPlot:
     def show(self):
         plt.show()
 
+    def set_plot_title(self, plot_title: str):
+        self.ax.set_title(plot_title)
+
     def default_plotting_settings(self):
         self.plot_settings = {
             # Tripod properties
@@ -529,11 +532,11 @@ class VectorPlot:
                   linealpha=linealpha, facefill=facefill, facealpha=facealpha,
                   vertexfill=False)
 
-    def plot_emf(self, emf=None,
-                 alpha=1, scaling=0.02, alr=0.1, color="orange"):
+    def plot_emf(self, emf=None, linewidth=3,
+                 alpha=1, scaling=0.02, alr=0.2, color="orange"):
         if emf is None:
             emf = local_emf()
-        self.plot_vector(emf,
+        self.plot_vector(emf, linewidth=linewidth,
                          alpha=alpha, scaling=scaling, alr=alr, color=color)
 
     def plot_table(self):
