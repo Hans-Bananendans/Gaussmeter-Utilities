@@ -9,11 +9,12 @@ from TimeplotPyQt import TimeplotPyQt
 from GaussmeterAnalysis import (
     EulerRotation,
     read_data,
-    vector_normal_distribution,
+    data_normal_distribution,
     data_savgol_filter,
     data_rotate,
     data_add_vector,
     time_plot,
+    VectorPlot
 )
 
 # Rotation matrix from geographic frame to cage frame
@@ -36,28 +37,26 @@ data = data_savgol_filter(data, 51, 4)
 # Rotate data from the sensor frame S into the cage frame C
 data = data_rotate(data, R_S2C)
 
-# Normalize the data (in C frame) with respect to the   EMF (in C frame):
+# Distribution properties of measurements in C frame
+mean_data, sd_data = data_normal_distribution(data)
+print("C-frame data: mean, sd:", mean_data.round(3), sd_data.round(3))
+
+# Normalize the data (in C frame) with respect to the EMF (in C frame):
 data = data_add_vector(data, -local_emf)
 
-# Set up plot ================================================================
-plot_title = """
-<h3><b> Magnetic field components of a weekday test performed from {} to {}.
-</b> <br> Data fetched from file:  <samp> {} </samp> </h3>
-""".format(
-    datetime.utcfromtimestamp(data[0][0]).strftime("%d/%m/%y %H:%M:%S"),
-    datetime.utcfromtimestamp(data[0][-1]).strftime("%d/%m/%y %H:%M:%S"),
-    filename
-)
-side_label = "<h3>Magnetic field component B (uT)<h3>"
+# Distribution properties of normalized disturbance datapoints in C frame
+mean_data_n, sd_data_n = data_normal_distribution(data)
+print("Normalized data: mean, sd:", mean_data_n.round(3), sd_data_n.round(3))
+print("Absolute strength of disturbance:",
+      round(np.linalg.norm(mean_data_n), 3),
+      "uT (",
+      round(100*(np.linalg.norm(mean_data_n)/np.linalg.norm(local_emf)), 2),
+      "% of EMF)")
 
-plot_filename = "WeekdayTest1_timeplot.png"
+vectorplot = VectorPlot()
+vectorplot.autoplot(tripod=True, coils=True, walls=True,
+                    table=True, emf_vector=True)
+vectorplot.plot_vector(mean_data, color="purple")
+vectorplot.plot_vector(mean_data_n, color="black", linewidth=3)
+vectorplot.show()
 
-plot_object = TimeplotPyQt()
-plot_object.set_plot_title(plot_title)
-plot_object.set_side_label(side_label)
-plot_object.set_window_size(1920, 1080)
-
-plot_object.save_plot(plot_filename)
-
-# Generate plot
-plot_object.timeplot_pyqtgraph(data)
