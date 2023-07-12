@@ -8,6 +8,7 @@ from datetime import datetime
 import pyqtgraph as pg
 # from pyqtgraph.Qt import QtCore
 from scipy.signal import savgol_filter
+from scipy.fft import rfft, rfftfreq
 from copy import deepcopy
 from time import time
 
@@ -305,6 +306,7 @@ class EulerRotation:
     def rotateZ(self, vector, angle, deg=True):
         return np.dot(self.rz(angle, deg=deg), vector)
 
+
 def data_rotate(data, rotation_matrix):
     for i in range(len(data[0])):
         vtemp = np.dot(rotation_matrix, np.array([data[1][i],
@@ -335,6 +337,43 @@ def read_data(filename, header=False, len_header=9):
             [t[i], x[i], y[i], z[i]] = \
                 [np.double(tt), float(xx), float(yy), float(zz)]
         return [t, x, y, z]
+
+
+def data_rfft_legacy(data, sample_rate=-1):
+    # Autodetermine sample rate when not given.
+    # Assumes constant sample rate.
+    if sample_rate == -1:
+        sample_rate = round(len(data[1]) / (data[0][-1] - data[0][0]), 3)
+
+    x_t = rfft(data[1])
+    x_f = rfftfreq(len(data[1]), 1 / sample_rate)
+
+    y_t = rfft(data[2])
+    y_f = rfftfreq(len(data[2]), 1 / sample_rate)
+
+    z_t = rfft(data[3])
+    z_f = rfftfreq(len(data[3]), 1 / sample_rate)
+
+    return [[x_t, x_f], [y_t, y_f], [z_t, z_f]]
+
+
+def data_rfft(data, sample_rate=-1):
+    # Autodetermine sample rate when not given.
+    # Assumes constant sample rate.
+    if sample_rate == -1:
+        sample_rate = round(len(data[1]) / (data[0][-1] - data[0][0]), 3)
+    n_samples = len(data[0])
+
+    f = rfftfreq(n_samples, 1 / sample_rate)
+    # x_t = rfft(data[1] * np.hanning(n_samples))
+    # x_t = rfft(data[1])
+    x_t = rfft(data[1])
+    y_t = rfft(data[2])
+    z_t = rfft(data[3])
+
+    return [f, np.abs(x_t), np.abs(y_t), np.abs(z_t)]
+    # return [f, x_t, y_t, z_t]
+
 
 def vector_normal_distribution(vectors: list):
     mean_x = 0
@@ -413,7 +452,7 @@ def zipBA(dataB):
 
 
 
-def time_plot(data, ylim=[-100, 100]):
+def time_plot(data, ylim=(-100, 100)):
 
     fig = plt.figure(figsize=(8, 8))
     gs = GridSpec(6,1)
@@ -426,21 +465,21 @@ def time_plot(data, ylim=[-100, 100]):
     pos_z = 0.9
 
     ax1.text(pos_x, 0.8, str(round(data[1][len(data)],3)),
-            ha="center", fontsize=26)
+             ha="center", fontsize=26)
     ax1.text(pos_x, 0.3, "uT",
-            ha="center", fontsize=16)
+             ha="center", fontsize=16)
 
     ax1.text(pos_y, 0.8, str(round(data[2][len(data)],3)),
-            ha="center", fontsize=26)
+             ha="center", fontsize=26)
     ax1.text(pos_y, 0.3, "uT",
-            ha="center", fontsize=16)
+             ha="center", fontsize=16)
 
     ax1.text(pos_z, 0.8, str(round(data[3][len(data)],3)),
-            ha="center", fontsize=26)
+             ha="center", fontsize=26)
     ax1.text(pos_z, 0.3, "uT",
-            ha="center", fontsize=14)
+             ha="center", fontsize=14)
 
-    ax2 = fig.add_subplot(gs[1:,0])
+    ax2 = fig.add_subplot(gs[1:, 0])
     ax2.set_ylim(ylim[0], ylim[1])
     ax2.plot(data[0], data[1], color='red')
     ax2.plot(data[0], data[2], color='green')
@@ -477,15 +516,59 @@ def sampling_plot(data, sr):
 
     ax2 = fig.add_subplot(gs[1:,0])
     
-    # print(len(list(range(len(sampling_intervals)))))
-    # print(type(list(range(len(sampling_intervals)))))
-    
-    # print(len(list(sampling_intervals)))
-    # print(type(list(sampling_intervals)))
-    
     ax2.plot(list(range(len(sampling_intervals))), sampling_intervals, color='black')
-    
-    
+
+
+def create_hhc_elements(coil_sides, coil_spacings):
+    # Unpacking coil sides into X/Y/Z
+    [coilX_side, coilY_side, coilZ_side] = coil_sides  # [m]
+    # Unpacking coil spacings into X/Y/Z
+    [coilX_spacing, coilY_spacing, coilZ_spacing] = coil_spacings
+
+    coilXp = Face(Vertex([coilX_spacing / 2, coilX_side / 2, coilX_side / 2]),
+                  Vertex([coilX_spacing / 2, -coilX_side / 2, coilX_side / 2]),
+                  Vertex([coilX_spacing / 2, -coilX_side / 2, -coilX_side / 2]),
+                  Vertex([coilX_spacing / 2, coilX_side / 2, -coilX_side / 2]))
+    coilXn = Face(Vertex([-coilX_spacing / 2, coilX_side / 2, coilX_side / 2]),
+                  Vertex([-coilX_spacing / 2, -coilX_side / 2, coilX_side / 2]),
+                  Vertex([-coilX_spacing / 2, -coilX_side / 2, -coilX_side / 2]),
+                  Vertex([-coilX_spacing / 2, coilX_side / 2, -coilX_side / 2]))
+
+    coilYp = Face(Vertex([coilY_side / 2, coilY_spacing / 2, coilY_side / 2]),
+                  Vertex([coilY_side / 2, coilY_spacing / 2, -coilY_side / 2]),
+                  Vertex([-coilY_side / 2, coilY_spacing / 2, -coilY_side / 2]),
+                  Vertex([-coilY_side / 2, coilY_spacing / 2, coilY_side / 2]))
+    coilYn = Face(Vertex([coilY_side / 2, -coilY_spacing / 2, coilY_side / 2]),
+                  Vertex([coilY_side / 2, -coilY_spacing / 2, -coilY_side / 2]),
+                  Vertex([-coilY_side / 2, -coilY_spacing / 2, -coilY_side / 2]),
+                  Vertex([-coilY_side / 2, -coilY_spacing / 2, coilY_side / 2]))
+
+    coilZp = Face(Vertex([coilZ_side / 2, coilZ_side / 2, coilZ_spacing / 2]),
+                  Vertex([-coilZ_side / 2, coilZ_side / 2, coilZ_spacing / 2]),
+                  Vertex([-coilZ_side / 2, -coilZ_side / 2, coilZ_spacing / 2]),
+                  Vertex([coilZ_side / 2, -coilZ_side / 2, coilZ_spacing / 2]))
+    coilZn = Face(Vertex([coilZ_side / 2, coilZ_side / 2, -coilZ_spacing / 2]),
+                  Vertex([-coilZ_side / 2, coilZ_side / 2, -coilZ_spacing / 2]),
+                  Vertex([-coilZ_side / 2, -coilZ_side / 2, -coilZ_spacing / 2]),
+                  Vertex([coilZ_side / 2, -coilZ_side / 2, -coilZ_spacing / 2]))
+
+    return [[coilXn, coilXp], [coilYn, coilYp], [coilZn, coilZp]]
+
+
+def create_lab_walls(lx=2, ly=2, lz=2, ox=0.5, oy=0.5, oz=0):
+    wall_x = Face(Vertex([lx / 2 + ox, ly / 2 + oy, lz / 2 + oz]),
+                  Vertex([lx / 2 + ox, -(ly / 2 + oy), lz / 2 + oz]),
+                  Vertex([lx / 2 + ox, -(ly / 2 + oy), -(lz / 2 + oz)]),
+                  Vertex([lx / 2 + ox, ly / 2 + oy, -(lz / 2 + oz)]))
+
+    wall_y = Face(Vertex([-(lx / 2 + ox), ly / 2 + oy, lz / 2 + oz]),
+                  Vertex([lx / 2 + ox, ly / 2 + oy, lz / 2 + oz]),
+                  Vertex([lx / 2 + ox, ly / 2 + oy, -(lz / 2 + oz)]),
+                  Vertex([-(lx / 2 + ox), ly / 2 + oy, -(lz / 2 + oz)]))
+
+    return [wall_x, wall_y]
+
+
 def FourierPlot(data):
     pass
 
