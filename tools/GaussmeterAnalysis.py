@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+import mpl_toolkits.mplot3d as mp3d
 from scipy.fft import fft, fftfreq
 from datetime import datetime
 import pyqtgraph as pg
@@ -12,266 +13,20 @@ from scipy.fft import rfft, rfftfreq
 from copy import deepcopy
 from time import time
 
+from local_emf import local_emf
+
+from cp import (
+    Vertex,
+    Face,
+    Geometry,
+    Frame,
+    plot_face,
+    plot_arrow,
+    plot_global_tripod,
+    plot_frame
+)
+
 # TODO: Remove (as it has been moved to separate file
-class TimeplotPyQt_depricated:
-    def __init__(self):
-        self.app = pg.mkQApp("Timeplot")
-        self.view = pg.GraphicsView()
-        self.gl = pg.GraphicsLayout()
-
-        self.view.setCentralItem(self.gl)
-
-        # Default settings
-        self.gl.setBorder(100, 100, 100)
-        self.view.setWindowTitle("Timeplot")
-        self.view.resize(800, 600)
-
-        self.gl.layout.setColumnPreferredWidth(0, 25)
-        self.gl.layout.setColumnPreferredWidth(1, 1200)
-
-        pg.setConfigOptions(antialias=True)  # Antialiasing for nicer plots
-
-        self.set_defaults()
-
-
-    def set_defaults(self):
-        self.light_theme = False
-
-        self.padding = [1.1, 1.0]  # Padding factor
-        self.force_identical_scale = True
-        self.pen_alpha = 0.8
-
-        pen_colors = ((255,   0,   0),
-                      (  0, 255,   0),
-                      (  0,  75, 255))
-        self.generate_pens(pen_colors)
-
-        # Colours of the draggable lines, depending on theme
-        if self.light_theme:
-            self.label_fill = (255, 255, 255, 180)  # White label backgrounds
-            self.label_text_color = (100, 100, 100)  # Darker label text
-        else:
-            self.label_fill = (0, 0, 0, 180)
-            self.label_text_color = (200, 200, 100)
-
-        # Background colour:
-        if self.light_theme:
-            self.view.setBackground("white")  # White background
-        else:
-            self.view.setBackground("black")
-
-        self.plot_title = "Plot Title"
-        self.side_label = "Side label"
-
-        self.grids = True
-
-
-    def set_light_theme(self):
-        self.light_theme = True
-
-    def set_dark_theme(self):
-        self.light_theme = False
-
-    def generate_pens(self, pc):
-        self.pen_rgb = pc
-
-        self.pen_rgba = (
-            (pc[0][0], pc[0][1], pc[0][2], self.pen_alpha*100),
-            (pc[1][0], pc[1][1], pc[1][2], self.pen_alpha*100),
-            (pc[2][0], pc[2][1], pc[2][2], self.pen_alpha*100),
-        )
-
-    def set_window_size(self, w: int, h: int):
-        self.view.resize(w, h)
-
-    def set_window_title(self, window_title: str):
-        self.view.setWindowTitle(window_title)
-
-    def set_padding(self, padding_h: float, padding_v: float):
-        self.padding = [padding_h, padding_v]
-
-    def set_force_identical_scale(self, force_identical_scale: bool):
-        self.force_identical_scale = force_identical_scale
-
-    def set_pen_alpha(self, alpha: float):
-        """
-        Set alpha of the pen.
-        Important: set in a range between 0.0 - 1.0 !
-        """
-        self.pen_alpha = alpha
-        generate_pens(self, self.pen_rgb)
-
-    def set_pen_colors(self, pen_colors):
-        """
-        Set colors of the pen.
-        Must be supplied as a list of listed rgb values, e.g.:
-        pen_colors = ((255,   0,   0),
-                      (  0, 255,   0),
-                      (  0,   0, 255))
-        """
-        self.generate_pens(pen_colors)
-
-    def set_label_fill(self, rgba):
-        """
-        Set a label fill RGBA, for example: (255, 255, 255, 180)
-        """
-        self.label_fill = rgba
-
-    def set_label_text_color(self, rgb):
-        """
-        Set a label text RGB, for example: (255, 255, 255)
-        """
-        self.label_text_color = rgb
-
-    def set_background(self, rgb):
-        self.view.setBackground(rgb)
-
-    def set_plot_title(self, plot_title: str):
-        self.plot_title = plot_title
-
-    def set_side_label(self, side_label: str):
-        self.side_label = side_label
-
-    def show_grids(self):
-        self.grids = True
-
-    def hide_grids(self):
-        self.grids = False
-
-    def timeplot_pyqtgraph(self, data: list):
-        # TODO: Plotting stuff
-
-        # # [DEBUG]
-        # for data_list in data:
-        #     print(type(data_list))
-        #     print(type(data_list[0]))
-
-        # Ensure data is of the same length, and of the right type(s)
-        for data_list in (data[1], data[2], data[3]):
-            assert len(data[0]) == len(data_list)
-            assert type(data_list) in (list, np.ndarray)
-            assert type(data_list[0]) in (float, int, np.float64)
-
-        # Unpacking data for plotting
-        # self.data_t = np.array(data[0])
-        # self.data_t_date = []
-        # for i in range(len(data[0])):
-        #     self.data_t_date.append(self.data[0][i])
-        # self.data_x = np.array(data[1])
-        # self.data_y = np.array(data[2])
-        # self.data_z = np.array(data[3])
-
-        self.trange = [data[0][0], data[0][-1]]
-        self.xrange = [min(data[1]), max(data[1])]
-        self.yrange = [min(data[2]), max(data[2])]
-        self.zrange = [min(data[3]), max(data[3])]
-
-        # Force identical scale if set to True:
-        if self.force_identical_scale is True:
-            xmid = self.xrange[0] + (self.xrange[1] - self.xrange[0]) / 2
-            ymid = self.yrange[0] + (self.yrange[1] - self.yrange[0]) / 2
-            zmid = self.zrange[0] + (self.zrange[1] - self.zrange[0]) / 2
-
-            xscale = self.xrange[1] - self.xrange[0]
-            yscale = self.yrange[1] - self.yrange[0]
-            zscale = self.zrange[1] - self.zrange[0]
-
-            scale = max([xscale, yscale, zscale])
-
-            self.xrange = [xmid - scale / 2, xmid + scale / 2]
-            self.yrange = [ymid - scale / 2, ymid + scale / 2]
-            self.zrange = [zmid - scale / 2, zmid + scale / 2]
-
-        # Start constructing plot ============================================
-
-        # Title and side label
-        self.gl.addLabel(self.plot_title, col=1, colspan=2)
-        self.gl.nextRow()
-        self.gl.addLabel(self.side_label, angle=-90, rowspan=3)
-
-        # Data plots
-
-        plotlabels = ("X", "Y", "Z")
-        p_range = (self.xrange, self.yrange, self.zrange)
-        for i, data_array in enumerate((data[1], data[2], data[3])):
-
-            # Main data plot
-            p = self.gl.addPlot(
-                title=plotlabels[i],
-                x=data[0],
-                y=np.array(data_array),
-                pen=pg.mkPen(color=self.pen_rgba[i]),
-                xmin=self.trange[0],
-                xmax=self.trange[1],
-                axisItems={'bottom': pg.DateAxisItem()}
-            )
-            p.setYRange(p_range[i][0], p_range[i][1])
-            p.showGrid(x=self.grids, y=self.grids)
-
-            # Horizontal nfinite line object (min)
-            infline_min = pg.InfiniteLine(
-                angle=0,
-                label="Min: {value:.2f} uT",
-                pen=pg.mkPen(color=self.pen_rgb[i]),
-                pos=p_range[i][0],
-                movable=False,
-                labelOpts={"position": 0.05,
-                           "color": self.pen_rgb[i],
-                           "fill": self.label_fill}
-            )
-            p.addItem(infline_min)
-
-            # Horizontal nfinite line object (max)
-            infline_max = pg.InfiniteLine(
-                angle=0,
-                label="Max: {value:.2f} uT",
-                pen=pg.mkPen(color=self.pen_rgb[i]),
-                pos=p_range[i][1],
-                movable=False,
-                labelOpts={"position": 0.05,
-                           "color": self.pen_rgb[i],
-                           "fill": self.label_fill}
-            )
-            p.addItem(infline_max)
-
-            # # [DEBUG]
-            # print(self.label_text_color)
-            # print(type(self.label_text_color))
-
-            # Horizontal scanline
-            infline_h = pg.InfiniteLine(
-                angle=90,
-                label="{value:.0f}",
-                pos=self.trange[1],
-                movable=True,
-                bounds=[self.trange[0], self.trange[1]],
-                labelOpts={"position": 0.12,
-                           "color": self.label_text_color,
-                           "fill": self.label_fill}
-            )
-            p.addItem(infline_h)
-
-            # Vertical scanline
-            infline_v = pg.InfiniteLine(
-                angle=0,
-                label="{value:.02f}",
-                pos=p_range[i][1],
-                movable=True,
-                bounds=[p_range[i][0], p_range[i][1]],
-                labelOpts={"position": 0.88,
-                           "color": self.label_text_color,
-                           "fill": self.label_fill}
-            )
-            p.addItem(infline_v)
-
-            self.gl.nextRow()
-
-        self.view.show()
-
-        # Executing PyQtGraph
-        pg.exec()
-
-
 class EulerRotation:
     def __init__(self):
         pass
@@ -338,7 +93,6 @@ def read_data(filename, header=False, len_header=9):
                 [np.double(tt), float(xx), float(yy), float(zz)]
         return [t, x, y, z]
 
-
 def data_rfft_legacy(data, sample_rate=-1):
     # Autodetermine sample rate when not given.
     # Assumes constant sample rate.
@@ -355,7 +109,6 @@ def data_rfft_legacy(data, sample_rate=-1):
     z_f = rfftfreq(len(data[3]), 1 / sample_rate)
 
     return [[x_t, x_f], [y_t, y_f], [z_t, z_f]]
-
 
 def data_rfft(data, sample_rate=-1):
     # Autodetermine sample rate when not given.
@@ -375,32 +128,54 @@ def data_rfft(data, sample_rate=-1):
     # return [f, x_t, y_t, z_t]
 
 
-def vector_normal_distribution(vectors: list):
-    mean_x = 0
-    mean_y = 0
-    mean_z = 0
+# def vector_normal_distribution(vectors: list):
+#     mean_x = 0
+#     mean_y = 0
+#     mean_z = 0
+#
+#     sd_x = 0
+#     sd_y = 0
+#     sd_z = 0
+#
+#     for vector in vectors:
+#         mean_x += vector[0]
+#         mean_y += vector[1]
+#         mean_z += vector[2]
+#
+#     mean_x = mean_x / len(vectors)
+#     mean_y = mean_y / len(vectors)
+#     mean_z = mean_z / len(vectors)
+#
+#     for vector in vectors:
+#         sd_x += (vector[0] - mean_x) ** 2
+#         sd_y += (vector[1] - mean_y) ** 2
+#         sd_z += (vector[2] - mean_z) ** 2
+#
+#     sd_x = (sd_x / len(vectors)) ** 0.5
+#     sd_y = (sd_y / len(vectors)) ** 0.5
+#     sd_z = (sd_z / len(vectors)) ** 0.5
+#
+#     return [np.array([mean_x, mean_y, mean_z]), np.array([sd_x, sd_y, sd_z])]
+
+def data_normal_distribution(data: list):
+    l_data = len(data[0])
+
+    mean_x = sum(data[1])/l_data
+    mean_y = sum(data[2])/l_data
+    mean_z = sum(data[3])/l_data
 
     sd_x = 0
     sd_y = 0
     sd_z = 0
 
-    for vector in vectors:
-        mean_x += vector[0]
-        mean_y += vector[1]
-        mean_z += vector[2]
+    for i in range(l_data):
+        sd_x += (data[1][i] - mean_x) ** 2
+        sd_y += (data[2][i] - mean_y) ** 2
+        sd_z += (data[3][i] - mean_z) ** 2
 
-    mean_x = mean_x / len(vectors)
-    mean_y = mean_y / len(vectors)
-    mean_z = mean_z / len(vectors)
-
-    for vector in vectors:
-        sd_x += (vector[0] - mean_x) ** 2
-        sd_y += (vector[1] - mean_y) ** 2
-        sd_z += (vector[2] - mean_z) ** 2
-
-    sd_x = (sd_x / len(vectors)) ** 0.5
-    sd_y = (sd_y / len(vectors)) ** 0.5
-    sd_z = (sd_z / len(vectors)) ** 0.5
+    sd_x = (sd_x / l_data) ** 0.5
+    sd_y = (sd_y / l_data) ** 0.5
+    sd_z = (sd_z / l_data) ** 0.5
 
     return [np.array([mean_x, mean_y, mean_z]), np.array([sd_x, sd_y, sd_z])]
 
@@ -554,31 +329,255 @@ def create_hhc_elements(coil_sides, coil_spacings):
 
     return [[coilXn, coilXp], [coilYn, coilYp], [coilZn, coilZp]]
 
+def create_cuboid(lx, ly, lz, ox=0, oy=0, oz=0):
+    # Define vertices
+    p1 = Vertex([ lx/2,  ly/2,  lz/2])      # .   7___ 6
+    p2 = Vertex([-lx/2,  ly/2,  lz/2])      # .   |\8__\5
+    p3 = Vertex([-lx/2, -ly/2,  lz/2])      # .   | |  |        Y
+    p4 = Vertex([ lx/2, -ly/2,  lz/2])      # .  3| | 2| -------->
+    p5 = Vertex([ lx/2,  ly/2, -lz/2])      # .    \|__|
+    p6 = Vertex([-lx/2,  ly/2, -lz/2])      # .    4  \ 1
+    p7 = Vertex([-lx/2, -ly/2, -lz/2])      # .        \
+    p8 = Vertex([ lx/2, -ly/2, -lz/2])      # .         v X
 
-def create_lab_walls(lx=2, ly=2, lz=2, ox=0.5, oy=0.5, oz=0):
-    wall_x = Face(Vertex([lx / 2 + ox, ly / 2 + oy, lz / 2 + oz]),
-                  Vertex([lx / 2 + ox, -(ly / 2 + oy), lz / 2 + oz]),
-                  Vertex([lx / 2 + ox, -(ly / 2 + oy), -(lz / 2 + oz)]),
-                  Vertex([lx / 2 + ox, ly / 2 + oy, -(lz / 2 + oz)]))
+    # Define faces
+    fA = Face(p1, p4, p3, p2)  # .  E ___
+    fB = Face(p3, p4, p8, p7)  # .   |\ F_\
+    fC = Face(p4, p1, p5, p8)  # . B | |  | D        Y
+    fD = Face(p1, p2, p6, p5)  # .   | | C|  -------->
+    fE = Face(p2, p3, p7, p6)  # .    \|__|
+    fF = Face(p5, p6, p7, p8)  # .      A
 
-    wall_y = Face(Vertex([-(lx / 2 + ox), ly / 2 + oy, lz / 2 + oz]),
-                  Vertex([lx / 2 + ox, ly / 2 + oy, lz / 2 + oz]),
-                  Vertex([lx / 2 + ox, ly / 2 + oy, -(lz / 2 + oz)]),
-                  Vertex([-(lx / 2 + ox), ly / 2 + oy, -(lz / 2 + oz)]))
+    # Assembling geometry
+    cuboid = Geometry([fA, fB, fC, fD, fE, fF])
 
-    return [wall_x, wall_y]
+    # frame = Frame()
+    # # Attaching the cuboid Geometry to 'frame1'
+    # frame.add_geometry(cuboid)
+    # # Translate 'frame1' away from the origin.
+    # frame.translate(ox, oy, oz)
+    return cuboid
 
+def create_table(leg_height=1.23, leg_width=0.04, leg_spacing=0.52,
+                 top_side=0.61, top_height=0.02, ox=0, oy=0, oz=-1.25):
 
-def FourierPlot(data):
+    frame_legs = Frame()
+    frame_top = Frame()
+
+    geometries_legs = []
+
+    # leg1 = create_cuboid(
+    #     leg_width, leg_width, leg_height,
+    #     1*leg_spacing/2, 1*leg_spacing/2, leg_height/2
+    # )
+
+    # leg1.translate(1*leg_spacing/2, 1*leg_spacing/2, oz+leg_height/2)
+    # frame_legs.add_geometry(leg1)
+
+    for i in ((1, 1), (-1, 1), (-1, -1), (1, -1)):
+        leg = create_cuboid(leg_width, leg_width, leg_height)
+        leg.translate(i[0]*leg_spacing/2, i[1]*leg_spacing/2, leg_height/2)
+        frame_legs.add_geometry(leg)
+
+    top = create_cuboid(top_side, top_side, top_height)
+    top.translate(0, 0, leg_height+top_height/2)
+    frame_top.add_geometry(top)
+
+    for frame in (frame_legs, frame_top):
+        frame.translate(ox, oy, oz)
+
+    return frame_legs, frame_top
+
+def create_x_wall(ly=2., lz=2., ox=0., oy=0., oz=0.):
+    wall_x = Face(Vertex([ox,  ly / 2 + oy,  lz / 2 + oz]),
+                  Vertex([ox, -ly / 2 + oy,  lz / 2 + oz]),
+                  Vertex([ox, -ly / 2 + oy, -lz / 2 + oz]),
+                  Vertex([ox,  ly / 2 + oy, -lz / 2 + oz]))
+    return wall_x
+
+def create_y_wall(lx=2., lz=2., ox=0., oy=0., oz=0.):
+    wall_y = Face(Vertex([-lx / 2 + ox, oy,  lz / 2 + oz]),
+                  Vertex([ lx / 2 + ox, oy,  lz / 2 + oz]),
+                  Vertex([ lx / 2 + ox, oy, -lz / 2 + oz]),
+                  Vertex([-lx / 2 + ox, oy, -lz / 2 + oz]))
+    return wall_y
+
+def create_floor(ly=2, lz=2, ox=0, oy=0, oz=0):
     pass
-
-# filename = "output_StressTest1_1200_100_2023-06-19_15.19.02.dat"
-# filename2 = "output_StressTest2_50_100_2023-06-19_15.58.24.dat"
-
-# data = ReadData(filename, header=True)
-# TimePlot(data)
-
+    # wall_y = Face(Vertex([-(lx / 2 + ox), ly / 2 + oy, lz / 2 + oz]),
+    #               Vertex([lx / 2 + ox, ly / 2 + oy, lz / 2 + oz]),
+    #               Vertex([lx / 2 + ox, ly / 2 + oy, -(lz / 2 + oz)]),
+    #               Vertex([-(lx / 2 + ox), ly / 2 + oy, -(lz / 2 + oz)]))
+    # return wall_y
 
 
-# sr = 100
-# SamplingPlot(data, sr)
+class VectorPlot:
+    def __init__(self):
+        # Define matplotlib plot structure
+        self.fig = plt.figure(figsize=(15, 10.5))
+        self.ax = mp3d.Axes3D(self.fig, auto_add_to_figure=False)
+        self.fig.add_axes(self.ax)
+        self.ax.clear()
+
+        self.default_plotting_settings()
+
+        self.plotscale = 1.1
+        self.ax.set_xlim(-4 / 3 * self.plotscale, 4 / 3 * self.plotscale)
+        self.ax.set_ylim(-4 / 3 * self.plotscale, 4 / 3 * self.plotscale)
+        self.ax.set_zlim(-self.plotscale, self.plotscale)
+
+        self.ax.set_xlabel('x')
+        self.ax.set_ylabel('y')
+        self.ax.set_zlabel('z')
+
+        # Default camera view
+        self.ax.view_init(elev=20, azim=-50)
+
+    def show(self):
+        plt.show()
+
+    def default_plotting_settings(self):
+        self.plot_settings = {
+            # Tripod properties
+            "show_tripod": True,  # If False, does not plot the tripod
+            "tripod_scale": 1,  # Sets the scale of the tripod
+            "plot_perpendiculars": True,  # Plot perpendiculars
+
+            # Vertex plotting properties:
+            "vertexfill": True,  # If False, vertex will not be plotted
+            "vertexcolour": "#000",  # Specifies the vertex colour
+            "vertexsize": 10,  # Size of the plotted vertex
+            "vertexalpha": 1,  # Opacity of the plotted vertex
+
+            # Face plotting properties:
+            "linefill": True,  # If False, does not plot face lines
+            "linecolour": "#000",  # Colour of face lines
+            "linewidth": 2,  # Thickness of face lines
+            "linealpha": 1,  # Opacity of face lines
+            "facefill": True,  # If False, does not shade the face area
+            "facecolour": "#555",  # Colour of the face area shading
+            "facealpha": 1,  # Opacity of the face area shading
+
+            # Face perpendicular arrow plotting properties:
+            "perpfill": False,  # If True, plot perpendiculars
+            "perpcolour": "#888",  # Specifies the perp. arrow colour
+            "perpscale": 1,  # Size of the plotted perp. arrow
+            "perpalpha": 0.5,  # Opacity of the plotted perp. arrow
+
+            # Illumination:
+            "illumination": False,  # If True, plots illumination intensity
+            "ill_value": 0,  # Used to plot illumination intensity
+            "ill_plane": None,  # If illumination is used, a plane
+
+            # Vector plotting properties:
+            "vectorfill": True,  # If False, does not plot vector arrow
+            "vectorcolour": "#000",  # Colour of vector arrow
+            "vectoralpha": 1,  # Opacity of vector arrow
+            "vectorscale": 1,  # Scale the whole vector by a constant
+            "vectorratio": 0.15  # Vector arrow length ratio
+        }
+
+    def plot_vector(self, tip, origin=(0, 0, 0), linewidth=1.5,
+                    alpha=1, scaling=0.02, alr=0.1, color="purple"):
+        plot_arrow(self.ax, origin, tip, linewidth=linewidth,
+                   alpha=alpha, scaling=scaling, alr=alr, color=color)
+
+    def plot_global_tripod(self, scaling: float = None):
+        if scaling is None:
+            scaling = self.plotscale / 2
+        plot_global_tripod(self.ax, scaling=scaling)
+
+    def plot_hhc_coils(self, coil_sides: list, coil_spacings: list,
+                       coil_thickness: int = 5, coil_alpha: float = 0.5,
+                       coil_colors=("#F00", "#0F0", "#00F")):
+
+        self.coil_sides = coil_sides
+        self.coil_spacings = coil_spacings
+
+        # First make the cage elements
+        cage_objects = create_hhc_elements(coil_sides, coil_spacings)
+
+        for coilX in cage_objects[0]:
+            plot_face(self.ax, coilX, linecolour=coil_colors[0],
+                      linewidth=coil_thickness, linealpha=coil_alpha,
+                      facefill=False, vertexfill=False)
+        for coilY in cage_objects[1]:
+            plot_face(self.ax, coilY, linecolour=coil_colors[1],
+                      linewidth=coil_thickness, linealpha=coil_alpha,
+                      facefill=False, vertexfill=False)
+        for coilZ in cage_objects[2]:
+            plot_face(self.ax, coilZ, linecolour=coil_colors[2],
+                      linewidth=coil_thickness, linealpha=coil_alpha,
+                      facefill=False, vertexfill=False)
+
+    # Plot the lab walls
+    def plot_x_wall(self, ly=2., lz=2., ox=0., oy=0., oz=0.,
+                    linecolour="#333", linewidth=3, linealpha=0.4,
+                    facefill=True, facealpha=0.25):
+        face = create_x_wall(ly=ly, lz=lz, ox=ox, oy=oy, oz=oz)
+        plot_face(self.ax, face,
+                  linecolour=linecolour, linewidth=linewidth,
+                  linealpha=linealpha, facefill=facefill, facealpha=facealpha,
+                  vertexfill=False)
+
+    def plot_y_wall(self, lx=2., lz=2., ox=0., oy=0., oz=0.,
+                    linecolour="#333", linewidth=3, linealpha=0.4,
+                    facefill=True, facealpha=0.25):
+        face = create_y_wall(lx=lx, lz=lz, ox=ox, oy=oy, oz=oz)
+        plot_face(self.ax, face,
+                  linecolour=linecolour, linewidth=linewidth,
+                  linealpha=linealpha, facefill=facefill, facealpha=facealpha,
+                  vertexfill=False)
+
+    def plot_emf(self, emf=None,
+                 alpha=1, scaling=0.02, alr=0.1, color="orange"):
+        if emf is None:
+            emf = local_emf()
+        self.plot_vector(emf,
+                         alpha=alpha, scaling=scaling, alr=alr, color=color)
+
+    def plot_table(self):
+        frame_legs, frame_top = create_table()
+        plot_frame(self.ax, frame_legs,
+                   show_tripod=False,
+                   vertexfill=False,
+                   vertexalpha=0,
+                   linecolour="#CCC",
+                   linealpha=0.3,
+                   facecolour="#CCC",
+                   facealpha=0.2,
+                   )
+        plot_frame(self.ax, frame_top,
+                   show_tripod=False,
+                   vertexfill=False,
+                   vertexalpha=0,
+                   linecolour="#C95",
+                   linealpha=0.3,
+                   facecolour="#C95",
+                   facealpha=0.2,
+                   )
+
+    def autoplot(self,
+                 tripod=True,
+                 coils=False,
+                 walls=False,
+                 table=False,
+                 emf_vector=False,
+                 delfipq=False,
+                 cubesat3u=False,
+                 cubesat12u=False):
+        if tripod:
+            self.plot_global_tripod()
+        if coils:
+            coil_sides = [1.85, 1.95, 2.05]
+            coil_spacings = [1.0073, 1.0618, 1.1162]
+            self.plot_hhc_coils(coil_sides, coil_spacings)
+        if walls:
+            self.plot_x_wall(3, 2, -1.5, 0, -0.1)
+            self.plot_y_wall(3, 2, 0, 1.5, -0.1)
+        if table:
+            self.plot_table()
+        if emf_vector:
+            self.plot_emf()
+
+
