@@ -89,7 +89,7 @@ class TimeplotPyQt:
         Important: set in a range between 0.0 - 1.0 !
         """
         self.pen_alpha = alpha
-        generate_pens(self, self.pen_rgb)
+        self.generate_pens(self.pen_rgb)
 
     def set_pen_colors(self, pen_colors):
         """
