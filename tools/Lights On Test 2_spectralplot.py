@@ -63,7 +63,7 @@ data_f = data_rfft(data)
 
 spectralplot = SpectralplotPyQt()
 spectralplot.set_window_size(1920, 1080)
-spectralplot.set_pen_alpha(0.5)
+spectralplot.set_pen_alpha(1)
 spectralplot.spectralplot_pyqtgraph(data_f)
 
 # # Plot Spectrogram LightOn XYZ
