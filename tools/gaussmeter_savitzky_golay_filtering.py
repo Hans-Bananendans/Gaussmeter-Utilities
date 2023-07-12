@@ -3,6 +3,7 @@
 """
 @author: Johan Monster
 """
+
 #%% ============================== Imports =================================
 
 from cp.cp_vertex import Vertex

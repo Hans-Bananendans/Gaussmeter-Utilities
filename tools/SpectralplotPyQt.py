@@ -256,6 +256,9 @@ class SpectralplotPyQtSeparateAxes:
         pg.exec()
 
 
+# TODO: Proper axis labels + units
+# TODO: Find a way to make left side of plot clearer
+
 class SpectralplotPyQt:
     def __init__(self):
         self.app = pg.mkQApp("Spectralplot")
