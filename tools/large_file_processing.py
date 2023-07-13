@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from time import time
 import psutil
 import os
@@ -379,32 +379,107 @@ class DataProcessor:
                 return f.tell()
 
     def get_start_time(self, unix=True):
-        start_time = self.return_by_line_byte(fp.get_header_size() + 1)
+        start_time = self.return_by_line_byte(self.get_header_size() + 1)
         if unix:
             return start_time
         else:
             return datetime.utcfromtimestamp(start_time)
 
+    def get_end_time(self, unix=True):
+        end_time = self.return_by_line_byte(self.filesize)
+        if unix:
+            return end_time
+        else:
+            return datetime.utcfromtimestamp(end_time)
 
-    def find_line_bytes_hourly(self):
+    @staticmethod
+    def unix2datetime(unix):
+        return datetime.utcfromtimestamp(unix)
+
+    @staticmethod
+    def datetime2unix(dt):
+        return dt.timestamp()
+
+    def find_line_bytes_hourly(self, verbose=0):
         """
         This function will:
          - Look at the dataset, and find the Unix time of the first entry
          - It will also remember the line_byte of this entry
          - Then it will predict the Unix time corresponding to the next full hour
          - It will then fetch the line_byte at this time.
-        :return:
+         - It will place the line_byte of the start and end of the interval into
+            a list for storage.
+         - It will do this for as long as
         """
-        unix0 = self.get_start_time(unix=True)
+        unix_start = self.get_start_time(unix=True)
+        unix_end = self.get_end_time(unix=True)
+
+        dt_start = self.unix2datetime(unix_start)
+        unix_mid_start = self.datetime2unix(
+            datetime(dt_start.year, dt_start.month, dt_start.day,
+                     dt_start.hour + 1, 0, 0, tzinfo=timezone.utc)
+        )
+
+        duration_head = unix_mid_start-unix_start
+        n_whole_hours = int((unix_end - unix_mid_start ) / 3600 )
+        duration_mid = n_whole_hours * 3600
+        duration_tail = (unix_end - unix_mid_start) - duration_mid
+
+        duration_total = unix_end-unix_start
+
+        if n_whole_hours == 0:
+            if verbose >= 1:
+                print("There is no need to split this file in hourly segments!")
+            return -1
+        else:
+            # Pre-allocate array
+            line_bytes_hourly = [[0, 0] for i in range(n_whole_hours + 2)]
+
+            line_bytes_hourly[0][0] = self.return_line_byte(
+                self.get_start_time(unix=True)
+            )
+
+            line_bytes_hourly[-1][1] = self.return_line_byte(
+                self.get_end_time(unix=True)
+            )
+
+            for hour in range(n_whole_hours+1):
+                line_bytes_hourly[hour+1][0] = \
+                    self.return_line_byte(unix_mid_start + 3600 * hour)
+                line_bytes_hourly[hour][1] = line_bytes_hourly[hour+1][0] - 1
+
+            if verbose >= 1:
+                for i, pair in enumerate(line_bytes_hourly):
+                    if i == 0:
+                        print("Header size :",
+                              round((pair[1] - pair[0])/1_000_000), "MB")
+                    elif i == len(line_bytes_hourly)-1:
+                        print("Tail size :",
+                              round((pair[1] - pair[0])/1_000_000), "MB")
+                    else:
+                        print("Interval", i+1, "size:",
+                              round((pair[1] - pair[0])/1_000_000), "MB")
+
+        return line_bytes_hourly
+
+
+        # print(self.unix2datetime(unix0))
+        # dt0 = self.get_start_time(unix=False)
+        # print(dt0)
+        # end0 = self.datetime2unix(datetime(dt0.year, dt0.month, dt0.day, dt0.hour+1, 0, 0, tzinfo=timezone.utc))
+        # print(self.unix2datetime(end0))
+
+    def segment_split(self, segments: list[list[int]]):
+        pass  # TODO: Implement!
 
 
 
-
-
-fp = DataProcessor(filename, 5)
+fp = DataProcessor(filename, 2500)
 # fp.print_header()
 print(fp.return_line_byte(1688670722+10000, verbose=0))
 print(fp.get_start_time())
+print(fp.return_by_line_byte(fp.filesize))
+fp.find_line_bytes_hourly(verbose=1)
 
 print("Elapsed time:", round(1000*(time()-time0), 3), 'ms')
     # print("RAM:",
