@@ -401,25 +401,28 @@ class SpectralplotPyQt:
         #     assert type(data_list[0]) in (float, int, np.float64)
 
         self.trange = [data[0][0], data[0][-1]]
-        self.xrange = [min(data[1]), max(data[1])]
-        self.yrange = [min(data[2]), max(data[2])]
-        self.zrange = [min(data[3]), max(data[3])]
+        self.drange = [min([min(data[1]), min(data[2]), min(data[3])]),
+                       max([max(data[1]), max(data[2]), max(data[3])])]
 
-        # Force identical scale if set to True:
-        if self.force_identical_scale is True:
-            xmid = self.xrange[0] + (self.xrange[1] - self.xrange[0]) / 2
-            ymid = self.yrange[0] + (self.yrange[1] - self.yrange[0]) / 2
-            zmid = self.zrange[0] + (self.zrange[1] - self.zrange[0]) / 2
-
-            xscale = self.xrange[1] - self.xrange[0]
-            yscale = self.yrange[1] - self.yrange[0]
-            zscale = self.zrange[1] - self.zrange[0]
-
-            scale = max([xscale, yscale, zscale])
-
-            self.xrange = [xmid - scale / 2, xmid + scale / 2]
-            self.yrange = [ymid - scale / 2, ymid + scale / 2]
-            self.zrange = [zmid - scale / 2, zmid + scale / 2]
+        # self.xrange = [min(data[1]), max(data[1])]
+        # self.yrange = [min(data[2]), max(data[2])]
+        # self.zrange = [min(data[3]), max(data[3])]
+        #
+        # # Force identical scale if set to True:
+        # if self.force_identical_scale is True:
+        #     xmid = self.xrange[0] + (self.xrange[1] - self.xrange[0]) / 2
+        #     ymid = self.yrange[0] + (self.yrange[1] - self.yrange[0]) / 2
+        #     zmid = self.zrange[0] + (self.zrange[1] - self.zrange[0]) / 2
+        #
+        #     xscale = self.xrange[1] - self.xrange[0]
+        #     yscale = self.yrange[1] - self.yrange[0]
+        #     zscale = self.zrange[1] - self.zrange[0]
+        #
+        #     scale = max([xscale, yscale, zscale])
+        #
+        #     self.xrange = [xmid - scale / 2, xmid + scale / 2]
+        #     self.yrange = [ymid - scale / 2, ymid + scale / 2]
+        #     self.zrange = [zmid - scale / 2, zmid + scale / 2]
 
         # Start constructing plot ============================================
 
@@ -440,7 +443,8 @@ class SpectralplotPyQt:
         # Main data plot
         p = self.gl.addPlot(xmin=self.trange[0], xmax=self.trange[1])
         p.setTitle(self.plot_title)
-        p.setYRange(p_range[0][0], p_range[0][1])
+        # p.setYRange(p_range[0][0], p_range[0][1])
+        p.setYRange(self.drange[0], self.drange[1])
         p.showGrid(x=self.grids, y=self.grids)
         p.setLogMode(x=True, y=True)
 
@@ -464,7 +468,7 @@ class SpectralplotPyQt:
                 xmax=self.trange[1],
             )
 
-        print(self.pen_rgba)
+        # print(self.pen_rgba)
 
         self.view.show()
 
