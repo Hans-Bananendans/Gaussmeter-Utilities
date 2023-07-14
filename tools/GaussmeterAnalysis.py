@@ -532,12 +532,13 @@ class VectorPlot:
                   linealpha=linealpha, facefill=facefill, facealpha=facealpha,
                   vertexfill=False)
 
-    def plot_emf(self, emf=None, linewidth=3,
-                 alpha=1, scaling=0.02, alr=0.2, color="orange"):
-        if emf is None:
-            emf = local_emf()
-        self.plot_vector(emf, linewidth=linewidth,
-                         alpha=alpha, scaling=scaling, alr=alr, color=color)
+    # # TODO: Delete
+    # def plot_emf(self, emf=None, linewidth=3,
+    #              alpha=1, scaling=0.02, alr=0.2, color="orange"):
+    #     if emf is None:
+    #         emf = local_emf()
+    #     self.plot_vector(emf, linewidth=linewidth,
+    #                      alpha=alpha, scaling=scaling, alr=alr, color=color)
 
     def plot_table(self):
         frame_legs, frame_top = create_table()
@@ -565,7 +566,7 @@ class VectorPlot:
                  coils=False,
                  walls=False,
                  table=False,
-                 emf_vector=False,
+                 # emf_vector=False,
                  delfipq=False,
                  cubesat3u=False,
                  cubesat12u=False):
@@ -580,7 +581,7 @@ class VectorPlot:
             self.plot_y_wall(3, 2, 0, 1.5, -0.1)
         if table:
             self.plot_table()
-        if emf_vector:
-            self.plot_emf()
+        # if emf_vector:
+        #     self.plot_emf()
 
 
