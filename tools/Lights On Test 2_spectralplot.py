@@ -23,13 +23,11 @@ from GaussmeterAnalysis import (
     EulerRotation,
     data_rfft,
     read_data,
-    vector_normal_distribution,
+    data_normal_distribution,
     data_savgol_filter,
     data_rotate,
     data_add_vector,
     time_plot,
-    create_hhc_elements,
-    create_lab_walls,
 )
 
 # Rotation matrix from geographic frame to cage frame

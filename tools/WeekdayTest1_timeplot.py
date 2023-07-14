@@ -9,7 +9,7 @@ from TimeplotPyQt import TimeplotPyQt
 from GaussmeterAnalysis import (
     EulerRotation,
     read_data,
-    vector_normal_distribution,
+    data_normal_distribution,
     data_savgol_filter,
     data_rotate,
     data_add_vector,
@@ -57,7 +57,7 @@ plot_object.set_plot_title(plot_title)
 plot_object.set_side_label(side_label)
 plot_object.set_window_size(1920, 1080)
 
-plot_object.save_plot(plot_filename)
+# plot_object.save_plot(plot_filename)
 
 # Generate plot
 plot_object.timeplot_pyqtgraph(data)
