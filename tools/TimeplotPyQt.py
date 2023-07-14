@@ -135,7 +135,61 @@ class TimeplotPyQt:
         self.save_plot_filename = plot_filename
         self.save_plot_width = width
 
-    def timeplot_pyqtgraph(self, data: list):
+    def timeplot_pyqtgraph(self, data: list, drange: list[float, float] = None):
+
+        # Ensure data is of the same length, and of the right type(s)
+        for data_list in (data[1], data[2], data[3]):
+            assert len(data[0]) == len(data_list)
+            assert type(data_list) in (list, np.ndarray)
+            assert type(data_list[0]) in (float, int, np.float64)
+
+        self.trange = [data[0][0], data[0][-1]]
+        if drange is None:
+            self.drange = [min([min(data[1]), min(data[2]), min(data[3])]),
+                           max([max(data[1]), max(data[2]), max(data[3])])]
+
+
+        # Start constructing plot ============================================
+
+        # Title and side label
+        self.gl.addLabel(self.plot_title, col=1, colspan=2)
+        self.gl.nextRow()
+        self.gl.addLabel(self.side_label, angle=-90, rowspan=3)
+
+
+        # Data plots
+        plotlabels = ("X", "Y", "Z")
+
+        # Main data plot
+        p = self.gl.addPlot(xmin=self.trange[0], xmax=self.trange[1],
+                            axisItems={'bottom': pg.DateAxisItem()})
+        # p.setTitle(self.plot_title)
+        p.setYRange(self.drange[0], self.drange[1])
+        p.showGrid(x=self.grids, y=self.grids)
+
+        for i, data_array in enumerate((data[1], data[2], data[3])):
+            p.plot(
+                title=plotlabels[i],
+                x=data[0],
+                y=np.array(data_array),
+                pen=pg.mkPen(color=self.pen_rgba[i]),
+                xmin=self.trange[0],
+                xmax=self.trange[1],
+                # axisItems={'bottom': pg.DateAxisItem()}
+            )
+
+        self.view.show()
+
+        # Save the graph layout, if necessary
+        if self.save_plot_toggle:
+            exporter = pg.exporters.ImageExporter(self.gl.scene())
+            exporter.parameters()['width'] = self.save_plot_width
+            exporter.export(self.save_plot_filename)
+
+        # Executing PyQtGraph
+        pg.exec()
+
+    def timeplot_3axis_pyqtgraph(self, data: list):
 
         # Ensure data is of the same length, and of the right type(s)
         for data_list in (data[1], data[2], data[3]):
@@ -253,3 +307,5 @@ class TimeplotPyQt:
 
         # Executing PyQtGraph
         pg.exec()
+
+
