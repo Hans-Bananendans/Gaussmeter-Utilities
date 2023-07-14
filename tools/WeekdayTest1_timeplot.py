@@ -57,7 +57,19 @@ plot_object.set_plot_title(plot_title)
 plot_object.set_side_label(side_label)
 plot_object.set_window_size(1920, 1080)
 
-# plot_object.save_plot(plot_filename)
+plot_object.save_plot(plot_filename)
 
 # Generate plot
 plot_object.timeplot_pyqtgraph(data)
+
+
+# 3axis plot (separate to ensure that the class object is fresh)
+plot_object2 = TimeplotPyQt()
+plot_object2.set_plot_title(plot_title)
+plot_object2.set_side_label(side_label)
+plot_object2.set_window_size(1920, 1080)
+
+plot_object2.save_plot(plot_filename[:-4]+"3axis"+plot_filename[-4:])
+
+# Generate plot
+plot_object2.timeplot_3axis_pyqtgraph(data)

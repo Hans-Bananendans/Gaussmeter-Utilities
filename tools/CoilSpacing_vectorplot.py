@@ -31,8 +31,8 @@ local_emf = np.dot(R_G2C, local_emf())
 
 # Filenames in chronological order
 filenames = (
-    "CoilsWide_2023-07-04_16.01.53.dat",
     "CoilsClose_2023-07-04_17.31.25.dat",
+    "CoilsWide_2023-07-04_16.01.53.dat",
     "SpatialX0Y0_2023-07-12_14.15.31_SPARSE25.dat",  # Use this as control test
 )
 
@@ -67,7 +67,7 @@ for i, filename in enumerate(filenames):
 #     print("|B|_{} = {} uT". format(i, round(np.linalg.norm(mean_data_n[i]), 3)))
 
 # Easy Copy-Paste readout
-easy_copy_paste_readout = False
+easy_copy_paste_readout = True
 if easy_copy_paste_readout:
     for j in (0, 1, 2):
         for i in range(len(filenames)):
@@ -95,7 +95,8 @@ plot_title = """
 vectorplot = VectorPlot()
 vectorplot.set_plot_title(plot_title)
 vectorplot.autoplot(tripod=True, coils=True, walls=True,
-                    table=True, emf_vector=True)
+                    table=True)
+vectorplot.plot_vector(local_emf, linewidth=3, scaling=0.02, alr=0.2, color="orange")
 for i in range(len(mean_data_n)):
     vectorplot.plot_vector(mean_data_n[i], color="black",
                            linewidth=3, alr=0.2)
