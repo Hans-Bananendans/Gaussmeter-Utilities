@@ -55,8 +55,9 @@ print("Absolute strength of disturbance:",
 
 vectorplot = VectorPlot()
 vectorplot.autoplot(tripod=True, coils=True, walls=True,
-                    table=True, emf_vector=True)
+                    table=True)
+vectorplot.plot_vector(local_emf, linewidth=3, scaling=0.02, alr=0.2, color="orange")
 vectorplot.plot_vector(mean_data, color="purple")
-vectorplot.plot_vector(mean_data_n, color="black", linewidth=3)
+vectorplot.plot_vector(mean_data_n, color="black", linewidth=3, alr=0.3)
 vectorplot.show()
 
