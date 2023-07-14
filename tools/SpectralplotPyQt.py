@@ -438,7 +438,7 @@ class SpectralplotPyQt:
 
         # Data plots
         plotlabels = ("X", "Y", "Z")
-        p_range = (self.xrange, self.yrange, self.zrange)
+        # p_range = (self.xrange, self.yrange, self.zrange)
 
         # Main data plot
         p = self.gl.addPlot(xmin=self.trange[0], xmax=self.trange[1])

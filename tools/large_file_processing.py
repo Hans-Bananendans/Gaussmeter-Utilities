@@ -1,18 +1,19 @@
-from datetime import datetime, timezone
-from time import time
-import psutil
 import os
-import sys
-from itertools import islice
-from bitstring import BitArray
+from time import time
+from datetime import datetime, timezone
+
+# import psutil
+# import sys
+# from itertools import islice
+# from bitstring import BitArray
 
 time0 = time()
 
 # First open the file and read the number of lines
 
 # filename = ".\data\LightOff_2023-07-04_10.57.37.dat" #
-# filename = ".\data\WeekdayTest_2023-07-03_10.41.03.dat" # 8.6M lines
-filename = ".\data\Weekday2500Hz_LightsOff_2023-07-06_19.12.02.dat" # 216M lines
+filename = ".\data\WeekdayTest_2023-07-03_10.41.03.dat" # 8.6M lines
+# filename = ".\data\Weekday2500Hz_LightsOff_2023-07-06_19.12.02.dat" # 216M lines
 # filename = ".\data\\test_data.dat"  # 500 lines
 
 len_header = 9
@@ -154,9 +155,6 @@ len_header = 9
 # #       round(psutil.Process().memory_info().rss / (1024 * 1024), 3),
 # #       "MB")
 # print("Elapsed time:", round(1000*(time()-time2), 3), 'ms')
-
-
-
 
 
 class DataProcessor:
@@ -421,11 +419,15 @@ class DataProcessor:
         )
 
         duration_head = unix_mid_start-unix_start
-        n_whole_hours = int((unix_end - unix_mid_start ) / 3600 )
+        n_whole_hours = int((unix_end - unix_mid_start) / 3600)
         duration_mid = n_whole_hours * 3600
         duration_tail = (unix_end - unix_mid_start) - duration_mid
 
         duration_total = unix_end-unix_start
+
+        if verbose >= 2:
+            print("Found {} whole 1-hour segments, and a header and tail."
+                  .format(n_whole_hours))
 
         if n_whole_hours == 0:
             if verbose >= 1:
@@ -452,34 +454,64 @@ class DataProcessor:
                 for i, pair in enumerate(line_bytes_hourly):
                     if i == 0:
                         print("Header size :",
-                              round((pair[1] - pair[0])/1_000_000), "MB")
+                              round((pair[1] - pair[0])/1024**2), "MB")
                     elif i == len(line_bytes_hourly)-1:
                         print("Tail size :",
-                              round((pair[1] - pair[0])/1_000_000), "MB")
+                              round((pair[1] - pair[0])/1024**2), "MB")
                     else:
                         print("Interval", i+1, "size:",
-                              round((pair[1] - pair[0])/1_000_000), "MB")
+                              round((pair[1] - pair[0])/1024**2), "MB")
 
-        return line_bytes_hourly
+            # print(self.unix2datetime(unix0))
+            # dt0 = self.get_start_time(unix=False)
+            # print(dt0)
+            # end0 = self.datetime2unix(datetime(dt0.year, dt0.month, dt0.day, dt0.hour+1, 0, 0, tzinfo=timezone.utc))
+            # print(self.unix2datetime(end0))
+
+            return line_bytes_hourly
+
+    # def segment_split(self, segments: list[list[int]], verbose=0):
+    def segment_split(self, verbose=0):
+
+        # First find the line_byte boundaries of the intervals
+        intervals = self.find_line_bytes_hourly(verbose=verbose)
+
+        # Loop over every interval
+        for n in range(len(intervals)):
+
+            # Generate output file name
+            filename_n = self.filename[:-4] \
+                         + str("_s{}of{}".format(n+1, len(intervals))) \
+                         + self.filename[-4:]
+
+            # Open data file
+            with open(self.filename, 'rb') as f:
+
+                # In the data to the byte that belongs to the start of the interval
+                f.seek(intervals[n][0], 1)
+                len_interval = intervals[n][1] - intervals[n][0]
+
+                with open(filename_n, 'w') as o:
+                    o.write(
+                        str(f.read(len_interval).replace(b'\r', b''), "utf-8")
+                    )
+            if verbose >= 2:
+                print("Saved {} MB to file: {}"
+                      .format(len_interval/1024**2, filename_n))
 
 
-        # print(self.unix2datetime(unix0))
-        # dt0 = self.get_start_time(unix=False)
-        # print(dt0)
-        # end0 = self.datetime2unix(datetime(dt0.year, dt0.month, dt0.day, dt0.hour+1, 0, 0, tzinfo=timezone.utc))
-        # print(self.unix2datetime(end0))
 
-    def segment_split(self, segments: list[list[int]]):
-        pass  # TODO: Implement!
-
-
-
-fp = DataProcessor(filename, 2500)
+fp = DataProcessor(filename, 100)
 # fp.print_header()
-print(fp.return_line_byte(1688670722+10000, verbose=0))
-print(fp.get_start_time())
-print(fp.return_by_line_byte(fp.filesize))
-fp.find_line_bytes_hourly(verbose=1)
+# print(fp.return_line_byte(1688670722+10000, verbose=1))
+t_start = fp.get_start_time()
+t_end = fp.return_by_line_byte(fp.filesize)
+# print(round(t_start), round(t_end), " | ", round(t_end-t_start), round((t_end-t_start)/3600))
+
+fp.find_line_bytes_hourly(verbose=2)
+
+if input("Continue with split? (Y/N)") in ("y", "Y"):
+    fp.segment_split(verbose=2)
 
 print("Elapsed time:", round(1000*(time()-time0), 3), 'ms')
     # print("RAM:",
