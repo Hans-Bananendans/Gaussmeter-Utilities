@@ -1,25 +1,9 @@
 # Imports ====================================================================
 import numpy as np
-import pyqtgraph as pg
-import pyqtgraph.exporters
-from datetime import datetime
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-# import mpl_toolkits.mplot3d as mp3d
-from scipy.fft import rfft, fftshift
 
-from cp import (
-    Vertex,
-    Face,
-    plot_face,
-    plot_arrow,
-    plot_global_tripod,
-)
-
-from local_emf import local_emf
-from TimeplotPyQt import TimeplotPyQt
-from SpectralplotPyQt import SpectralplotPyQt
-from GaussmeterAnalysis import (
+from tools.local_emf import local_emf
+from tools.plotting import TimeplotPyQt, SpectralplotPyQt
+from tools.GaussmeterAnalysis import (
     EulerRotation,
     data_rfft,
     read_data,
@@ -39,30 +23,52 @@ R_S2C = EulerRotation().rx(-180, deg=True)
 local_emf = np.dot(R_G2C, local_emf())
 
 # Data processing ============================================================
-filename = "2500HzTestLightOn_2023-07-05_11.04.28.dat"
+filenameON = "./data/2500HzTestLightsOn_2023-07-05_11.04.28.dat"
+filenameOFF = "./data/2500HzTestLightsOff_2023-07-05_11.13.36.dat"
 
 # Import data
-data = read_data(filename, header=True)
+dataON = read_data(filenameON, header=True)
+dataOFF = read_data(filenameOFF, header=True)
 
 # Apply Savitzky-Golay smoothing
-data = data_savgol_filter(data, 51, 4)
+dataON = data_savgol_filter(dataON, 51, 4)
+dataOFF = data_savgol_filter(dataOFF, 51, 4)
 
 # Rotate data from the sensor frame S into the cage frame C
-data = data_rotate(data, R_S2C)
+dataON = data_rotate(dataON, R_S2C)
+dataOFF = data_rotate(dataOFF, R_S2C)
 
 # Normalize the data (in C frame) with respect to the EMF (in C frame):
-data = data_add_vector(data, -local_emf)
+dataON = data_add_vector(dataON, -local_emf)
+dataOFF = data_add_vector(dataOFF, -local_emf)
 
 # Obtain one-sided FFT data
 # [[x_t1, x_f1], [y_t1, y_f1], [z_t1, z_f1]] = data_rfft(data)
-[f, x_t, y_t, z_t] = data_rfft(data)
-data_f = data_rfft(data)
+[f, x_t, y_t, z_t] = data_rfft(dataON)
+data_f_ON = data_rfft(dataON)
+
+data_f_OFF = data_rfft(dataOFF)
 
 
-spectralplot = SpectralplotPyQt()
-spectralplot.set_window_size(1920, 1080)
-spectralplot.set_pen_alpha(1)
-spectralplot.spectralplot_pyqtgraph(data_f)
+spectralplotON = SpectralplotPyQt()
+# spectralplotON.set_window_size(1920, 1080)
+spectralplotON.set_window_size(1200, 800)
+spectralplotON.set_pen_alpha(1)
+spectralplotON.set_plot_title("Magnetic frequency spectra during day with ceiling lights ON")
+spectralplotON.set_xlabel("Frequency [Hz]")
+spectralplotON.set_ylabel("Field magnitude [\u03BCT / \u221AHz]")
+spectralplotON.save_plot("Lights On - Spectral Plot")
+spectralplotON.spectralplot_pyqtgraph(data_f_ON)
+
+spectralplotOFF = SpectralplotPyQt()
+# spectralplotOFF.set_window_size(1920, 1080)
+spectralplotOFF.set_window_size(1200, 800)
+spectralplotOFF.set_pen_alpha(1)
+spectralplotOFF.set_plot_title("Magnetic frequency spectra during day with ceiling lights OFF")
+spectralplotOFF.set_xlabel("Frequency [Hz]")
+spectralplotOFF.set_ylabel("Field magnitude [\u03BCT / \u221AHz]")
+spectralplotOFF.save_plot("Lights Off - Spectral Plot")
+spectralplotOFF.spectralplot_pyqtgraph(data_f_OFF)
 
 # # Plot Spectrogram LightOn XYZ
 # fig1 = plt.figure(figsize=(8, 8))

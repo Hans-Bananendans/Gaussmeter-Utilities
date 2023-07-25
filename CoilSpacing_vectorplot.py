@@ -5,9 +5,9 @@ import pyqtgraph.exporters
 from datetime import datetime
 from time import time
 
-from local_emf import local_emf
-from TimeplotPyQt import TimeplotPyQt
-from GaussmeterAnalysis import (
+from tools.local_emf import local_emf
+from tools.TimeplotPyQt import TimeplotPyQt
+from tools.GaussmeterAnalysis import (
     EulerRotation,
     read_data,
     data_normal_distribution,
@@ -31,9 +31,9 @@ local_emf = np.dot(R_G2C, local_emf())
 
 # Filenames in chronological order
 filenames = (
-    "CoilsClose_2023-07-04_17.31.25.dat",
-    "CoilsWide_2023-07-04_16.01.53.dat",
-    "SpatialX0Y0_2023-07-12_14.15.31_SPARSE25.dat",  # Use this as control test
+    "./data/CoilsClose_2023-07-04_17.31.25.dat",
+    "./data/CoilsWide_2023-07-04_16.01.53.dat",
+    "./data/SpatialX0Y0_2023-07-12_14.15.31_SPARSE25.dat",  # Use this as control test
 )
 
 

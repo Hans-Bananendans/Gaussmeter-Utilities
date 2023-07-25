@@ -135,7 +135,10 @@ class TimeplotPyQt:
         self.save_plot_filename = plot_filename
         self.save_plot_width = width
 
-    def timeplot_pyqtgraph(self, data: list, drange: list[float, float] = None):
+    def timeplot_pyqtgraph(self, data: list, drange = None):  # noqa
+        """
+        drange must be a list[float, float]
+        """
 
         # Ensure data is of the same length, and of the right type(s)
         for data_list in (data[1], data[2], data[3]):

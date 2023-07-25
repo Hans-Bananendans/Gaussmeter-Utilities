@@ -480,3 +480,72 @@ class SpectralplotPyQt:
 
         # Executing PyQtGraph
         pg.exec()
+
+
+    def spectralplot_pyqtgraph_separateaxes(self, data: list):
+
+        # Ensure data is of the same length, and of the right type(s)
+        # for data_list in (data[1], data[2], data[3]):
+        #     assert len(data[0]) == len(data_list)
+        #     assert type(data_list) in (list, np.ndarray)
+        #     assert type(data_list[0]) in (float, int, np.float64)
+
+        self.trange = [data[0][0], data[0][-1]]
+        self.xrange = [min(data[1]), max(data[1])]
+        self.yrange = [min(data[2]), max(data[2])]
+        self.zrange = [min(data[3]), max(data[3])]
+
+        # Force identical scale if set to True:
+        if self.force_identical_scale is True:
+            xmid = self.xrange[0] + (self.xrange[1] - self.xrange[0]) / 2
+            ymid = self.yrange[0] + (self.yrange[1] - self.yrange[0]) / 2
+            zmid = self.zrange[0] + (self.zrange[1] - self.zrange[0]) / 2
+
+            xscale = self.xrange[1] - self.xrange[0]
+            yscale = self.yrange[1] - self.yrange[0]
+            zscale = self.zrange[1] - self.zrange[0]
+
+            scale = max([xscale, yscale, zscale])
+
+            self.xrange = [xmid - scale / 2, xmid + scale / 2]
+            self.yrange = [ymid - scale / 2, ymid + scale / 2]
+            self.zrange = [zmid - scale / 2, zmid + scale / 2]
+
+        # Start constructing plot ============================================
+
+        # Title and side label
+        self.gl.addLabel(self.plot_title, col=1, colspan=2)
+        self.gl.nextRow()
+        self.gl.addLabel(self.side_label, angle=-90, rowspan=3)
+
+        # Data plots
+        plotlabels = ("X", "Y", "Z")
+        p_range = (self.xrange, self.yrange, self.zrange)
+        for i, data_array in enumerate((data[1], data[2], data[3])):
+
+            # Main data plot
+            p = self.gl.addPlot(
+                title=plotlabels[i],
+                x=data[0],
+                y=np.array(data_array),
+                pen=pg.mkPen(color=self.pen_rgba[i]),
+                xmin=self.trange[0],
+                xmax=self.trange[1],
+                # axisItems={'bottom': pg.DateAxisItem()}
+            )
+            p.setYRange(p_range[i][0], p_range[i][1])
+            p.showGrid(x=self.grids, y=self.grids)
+            p.setLogMode(x=False, y=True)
+
+            self.gl.nextRow()
+
+        self.view.show()
+
+        # Save the graph layout, if necessary
+        if self.save_plot_toggle:
+            exporter = pg.exporters.ImageExporter(self.gl.scene())
+            exporter.parameters()['width'] = self.save_plot_width
+            exporter.export(self.save_plot_filename)
+
+        # Executing PyQtGraph
+        pg.exec()
