@@ -2,6 +2,8 @@ import os
 from time import time
 from datetime import datetime, timezone
 
+from .GaussmeterLib import multipart_filenames
+
 # import psutil
 # import sys
 # from itertools import islice
@@ -12,11 +14,11 @@ time0 = time()
 # First open the file and read the number of lines
 
 # filename = ".\data\LightOff_2023-07-04_10.57.37.dat" #
-filename = ".\data\WeekdayTest_2023-07-03_10.41.03.dat" # 8.6M lines
+# filename = ".\data\WeekdayTest_2023-07-03_10.41.03.dat" # 8.6M lines
 # filename = ".\data\Weekday2500Hz_LightsOff_2023-07-06_19.12.02.dat" # 216M lines
 # filename = ".\data\\test_data.dat"  # 500 lines
 
-len_header = 9
+# len_header = 9
 
 
 # class DataProcessor:
@@ -188,7 +190,7 @@ class DataProcessor:
     def set_maxlinelength(self, maxlinelength):
         self.maxlinelength = maxlinelength
 
-    def _seek_to_startline(self, f):
+    def _seek_to_startline(self, f, verbose=1):
         imax = 0
         while True:
             f.seek(-2, 1)
@@ -204,7 +206,7 @@ class DataProcessor:
             else:
                 imax += 1
 
-    def _seek_to_nextline(self, f):
+    def _seek_to_nextline(self, f, verbose=1):
         imax = 0
         while True:
             f.seek(0, 1)
@@ -398,6 +400,13 @@ class DataProcessor:
     def datetime2unix(dt):
         return dt.timestamp()
 
+    @staticmethod
+    def unix_hour(unix):
+        dt = datetime.utcfromtimestamp(unix)
+        return "{}:{}:{}".format(str(dt.hour).rjust(2, "0"),
+                                 str(dt.minute).rjust(2, "0"),
+                                 str(dt.second).rjust(2, "0"))
+
     def find_line_bytes_hourly(self, verbose=0):
         """
         This function will:
@@ -454,13 +463,22 @@ class DataProcessor:
                 for i, pair in enumerate(line_bytes_hourly):
                     if i == 0:
                         print("Header size :",
-                              round((pair[1] - pair[0])/1024**2), "MB")
+                              round((pair[1] - pair[0])/1024**2), "MB",
+                              "       (start:",
+                              self.unix_hour(unix_start),
+                              ")")
                     elif i == len(line_bytes_hourly)-1:
                         print("Tail size :",
-                              round((pair[1] - pair[0])/1024**2), "MB")
+                              round((pair[1] - pair[0])/1024**2), "MB",
+                              "       (end:",
+                              self.unix_hour(unix_end),
+                              ")")
                     else:
                         print("Interval", i+1, "size:",
-                              round((pair[1] - pair[0])/1024**2), "MB")
+                              round((pair[1] - pair[0])/1024**2), "MB",
+                              "       (",
+                              self.unix_hour(unix_mid_start+3600*(i-1)),
+                              ")")
 
             # print(self.unix2datetime(unix0))
             # dt0 = self.get_start_time(unix=False)
@@ -480,9 +498,10 @@ class DataProcessor:
         for n in range(len(intervals)):
 
             # Generate output file name
-            filename_n = self.filename[:-4] \
-                         + str("_s{}of{}".format(n+1, len(intervals))) \
-                         + self.filename[-4:]
+            filename_n = multipart_filenames(self.filename, n+1)[n]
+            # filename_n = self.filename[:-4] \
+            #              + str("_s{}of{}".format(n+1, len(intervals))) \
+            #              + self.filename[-4:]
 
             # Open data file
             with open(self.filename, 'rb') as f:
@@ -501,24 +520,24 @@ class DataProcessor:
 
 
 
-fp = DataProcessor(filename, 100)
-# fp.print_header()
-# print(fp.return_line_byte(1688670722+10000, verbose=1))
-t_start = fp.get_start_time()
-t_end = fp.return_by_line_byte(fp.filesize)
-# print(round(t_start), round(t_end), " | ", round(t_end-t_start), round((t_end-t_start)/3600))
-
-fp.find_line_bytes_hourly(verbose=2)
-
-if input("Continue with split? (Y/N)") in ("y", "Y"):
-    fp.segment_split(verbose=2)
-
-print("Elapsed time:", round(1000*(time()-time0), 3), 'ms')
-    # print("RAM:",
-    #       round(psutil.Process().memory_info().rss / (1024 * 1024), 3),
-    #       "MB")
-    # print("Elapsed time:", round(1000*(time()-time0), 3), 'ms')
-    # print("File has", n_lines, "lines.")
+# fp = DataProcessor(filename, 100)
+# # fp.print_header()
+# # print(fp.return_line_byte(1688670722+10000, verbose=1))
+# t_start = fp.get_start_time()
+# t_end = fp.return_by_line_byte(fp.filesize)
+# # print(round(t_start), round(t_end), " | ", round(t_end-t_start), round((t_end-t_start)/3600))
+#
+# fp.find_line_bytes_hourly(verbose=2)
+#
+# if input("Continue with split? (Y/N)") in ("y", "Y"):
+#     fp.segment_split(verbose=2)
+#
+# print("Elapsed time:", round(1000*(time()-time0), 3), 'ms')
+#     # print("RAM:",
+#     #       round(psutil.Process().memory_info().rss / (1024 * 1024), 3),
+#     #       "MB")
+#     # print("Elapsed time:", round(1000*(time()-time0), 3), 'ms')
+#     # print("File has", n_lines, "lines.")
 
 
 # Given a sample rate and a dataset containing Unix timestamps:

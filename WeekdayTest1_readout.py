@@ -4,9 +4,9 @@ import pyqtgraph as pg
 import pyqtgraph.exporters
 from datetime import datetime
 
-from local_emf import local_emf
-from TimeplotPyQt import TimeplotPyQt
-from GaussmeterAnalysis import (
+from tools.local_emf import local_emf
+from tools.plotting import TimeplotPyQt
+from tools.GaussmeterAnalysis import (
     EulerRotation,
     read_data,
     data_normal_distribution,

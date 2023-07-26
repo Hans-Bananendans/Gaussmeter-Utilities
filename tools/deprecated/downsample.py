@@ -48,6 +48,58 @@ filenames = generate_filenames(filename_base, 25)
 #     ]
 
 
+def data_downsample(filenames, downsampling_factor,
+                    len_header=10, verbose=0):
+    """
+    Function that takes a list of filenames, and downsamples them by an integer
+     factor.
+
+     This function is not meant for >RAM files, and the whole dataset will be
+     read into memory when processing. To downsample a >RAM dataset, first cut
+     it into segments using the DataProcessor class before downsampling.
+     The downsampled segments can then be merged using the data_merge function.
+    """
+
+    # Loop over all filenames in filenames object
+    for filename in filenames:
+
+        # Load data
+        data = read_data(filename, header=True)
+
+        # Determine the number of chunks in which data can be subdivided:
+        chunks, _ = divmod(len(data[0]), downsampling_factor)
+
+        # Pre-allocate object for downsampled data
+        data_sparse = [[0.]*chunks, [0.]*chunks, [0.]*chunks, [0.]*chunks]
+
+        # Every <downsampling_factor> sample the data and save to the new set
+        i_chunk = 0
+        while i_chunk < chunks:
+            for v in range(len(data)):
+                data_sparse[v][i_chunk] = data[v][0+i_chunk*downsampling_factor]
+            i_chunk += 1
+
+        # Generate filename for new file
+        flag = "_SPARSE" + str(downsampling_factor)
+        filename_sparse = filename[:-4] + flag + filename[-4:]
+
+        # Create empty merged file
+        with open(filename_sparse, 'x') as fo:
+            if verbose >= 2:
+                print("Created merge file {}".format(filename_sparse))
+
+        # Copy header from first file
+        with open(filename, 'r') as f, open(filename_sparse, "a") as fo:
+            for i in range(len_header):
+                fo.write(f.readline())
+            if verbose >= 2:
+                print("Copied header from {}".format(filename))
+
+        write_data(filename_sparse, data_sparse, mode="a", verbose=verbose)
+
+
+
+
 for filename in filenames:
     data = read_data(filename, header=True)
 
@@ -69,7 +121,6 @@ for filename in filenames:
 
     #%% Save data
     filename_sparse = filename[:-4]+"_SPARSE"+str(downsampling_factor)+filename[-4:]
-
 
     len_header = 9
 

@@ -1,730 +1,388 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Jun 20 13:29:48 2023
 
-@author: Johan Monster
-
-Library for Gaussmeter utilities.
-"""
-NAME = "Gaussmeter Recorder"
-VERSION = "1.0.0"
-VERSION_DATE = "28-06-2023"
-
-
-#%% IMPORT DEPENDENCIES
-
-import os
-import sys
-import ctypes
-import threading
-import PyDAQmx
 import numpy as np
-from tqdm import tqdm
-from array import array
-from time import time, sleep
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
+import mpl_toolkits.mplot3d as mp3d
+from scipy.fft import fft, fftfreq
 from datetime import datetime
-from argparse import ArgumentParser
-from colorama import init, Fore, Style; init(autoreset=True)
+import pyqtgraph as pg
+# from pyqtgraph.Qt import QtCore
+from scipy.signal import savgol_filter
+from scipy.fft import rfft, rfftfreq
+from copy import deepcopy
+from time import time
 
-import psutil
+from .local_emf import local_emf
 
-#%% DataRecorder Class
+from .cp import (
+    Vertex,
+    Face,
+    Geometry,
+    Frame,
+    plot_face,
+    plot_arrow,
+    plot_global_tripod,
+    plot_frame
+)
 
-class DataRecorder():
-    # Important distinction:
-    # BUFFER_SIZE refers to the number of samples for each channel per buffer.
-    # LEN_BUFFER refers to the actual length of the buffer, which is BUFFER_SIZE
-    #   multiplied by the number of channels.
-    # Example: For a buffer with a size of 100 samples, reading from 3 channels:
-    #   BUFFER_SIZE = 100
-    #   LEN_BUFFER = 300
-    
-    # Default parameters
-    __n_channels: int       = 1
-    __n_samples: int        = 3600
-    __sr: int               = 60        # S/s
-    __recording_time: float = 60.       # s
-    __n_buffers: int        = 2
-    __buffer_size: int      = 120       # S/channel
-    __allow_n_samples_rounding: bool = True
-    __v_min: float          = -1.25     # V
-    __v_max: float          = 1.25      # V
-    __rounding_t: int       = 9
-    __rounding_v: int       = 3
-    __scale_v: float        = 1.
-    __name: str             = ""
-    __filetype: str()       = ".dat"
-    __use_header: bool      = True,         
-    __header: str           = "!H",
-    __filename: str         = "default.dat"
-    __verbose: int          = 0
-    __dt: float             = 0.        # s
-    
-    
-    def __init__(self,
-                 recording_time: float = 60.,    # sec
-                 sr: int = 60,                  # S/s
-                 name: str = "",                # Name of the recording session
-                 filetype: str = ".dat",        # File extension of the data file
-                 allow_n_samples_rounding: bool = True,
-                 use_header: bool = True,         
-                 header: str = "!H",              
-                 verbose: int = 0               # Verbosity level
-                 ):
-        """
-        Initialize DataRecorder object
-        
-        Parameters
-        ----------
-        recording_time : float, optional
-            DURATION of recording in [s]. The default is 60.0.
-        sr : int, optional
-            SAMPLING RATE of the recording in [S/s]. The default is 60.
-        name : str, optional
-            NAME of the recording session, will be added to the filename of 
-            the data file. The default is "".
-        filetype : str, optional
-            The FILE EXTENSION of the data file. The default is ".dat".
-        allow_n_samples_rounding : bool, optional
-            If allowed, this will increase the total recorded slightly such 
-            that n_samples is an integer multiple of the buffer_size. 
-            Turning this off may result in a number of zeroes at the end of 
-            the data file. The default is True.
-        use_header : bool, optional
-            Whether to make the first line of the data file a header.
-            The default is True.
-        header : str, optional
-            The CONTENTS of the header. The default is "!H".
-        verbose : bool, optional
-            The VERBOSITY LEVEL of the program. The default is 0.
-        """
-        
-        self.__recording_time = recording_time
-        self.__sr = sr
-        self.__name = name
-        self.__filetype = filetype
-        self.__allow_n_samples_rounding = allow_n_samples_rounding
-        self.__use_header = use_header
-        self.__header = header
-        self.__verbose=verbose     
-        
-        self.__dt = 1/self.__sr
-        # Recompute n_samples based on given recording_time and sr
-        self.generate_n_samples()
-        
-        # Generate filename
-        self.generate_filename()
-        
-    
-    #%% SETTINGS METHODS
-    
-    def set_sampling_settings(self, 
-                              n_channels: int = __n_channels, 
-                              n_samples: int = __n_samples,
-                              sr: int = __sr,
-                              n_buffers: int = __n_buffers,
-                              buffer_size: int = __buffer_size,
-                              v_min: int = __v_min,
-                              v_max: int = __v_max,
-                              allow_n_samples_rounding: bool = 
-                                  __allow_n_samples_rounding
-                              ):
-        
-        """
-        Specifies additional sampling parameters of the recording object.
+class EulerRotation:
+    def __init__(self):
+        pass
 
-        Parameters
-        ----------
-        n_channels : int, optional
-            NUMBER OF VOLTAGE CHANNELS to record. The default is 1.
-        n_samples : int, optional
-            TOTAL NUMBER OF SAMPLES to gather during the recording session.
-        sr : int, optional
-            SAMPLING RATE of the recording in [S/s].
-        n_buffers : int, optional
-            The NUMBER OF BUFFERS to use. Use at least 2. The default is 2.
-        buffer_size : int, optional
-            Number of datapoints in the buffer per channel.
-        v_min : int, optional
-            The MINIMUM VOLTAGE of the recording range. The default is -1.25V.
-        v_max : int, optional
-            The MAXIMUM VOLTAGE of the recording range. The default is +1.25V.
-        allow_n_samples_rounding : bool, optional
-            If allowed, this will increase the total recorded slightly such 
-            that n_samples is an integer multiple of the buffer_size. 
-            Turning this off may result in a number of zeroes at the end of 
-            the data file.
-        """
-        
-        self.__n_channels = n_channels
-        self.__n_samples = n_samples
-        self.__sr = sr
-        self.__n_buffers = n_buffers
-        self.__buffer_size = buffer_size
-        self.__v_min = v_min
-        self.__v_max = v_max
-        
-        self.__dt = 1/self.__sr
-    
-    def set_recording_time(self, recording_time: float):
-        """
-        Set the recording time in [s].
+    def rx(self, angle, deg=True):
+        if deg:
+            angle *= np.pi / 180
+        return np.array([[1,             0,              0],
+                         [0, np.cos(angle), -np.sin(angle)],
+                         [0, np.sin(angle),  np.cos(angle)]])
 
-        Parameters
-        ----------
-        recording_time : float
-            The desired recording time in seconds.
-        """
-        
-        self.__recording_time = recording_time
-        self.generate_n_samples()
-        
-    
-    def set_data_settings(self,
-                          name: str = __name,
-                          filetype: str = __filetype,
-                          use_header: bool = __use_header,         
-                          header: str = __header,
-                          rounding_t: int = __rounding_t,
-                          rounding_v: int = __rounding_v,
-                          scale_v: float = __scale_v
-                          ):
-        """
-        Specifies data file parameters of the recording object.
+    def ry(self, angle, deg=True):
+        if deg:
+            angle *= np.pi / 180
+        return np.array([[ np.cos(angle), 0, np.sin(angle)],
+                         [             0, 1,             0],
+                         [-np.sin(angle), 0, np.cos(angle)]])
 
-        Parameters
-        ----------
-        name : str, optional
-            NAME of the recording session, will be added to the filename of 
-            the data file. The default is "".
-        filetype : str, optional
-            The FILE EXTENSION of the data file. The default is ".dat".
-        use_header : bool, optional
-            Whether to make the first line of the data file a header.
-            The default is True.
-        header : str, optional
-            The CONTENTS of the header. The default is "!H".
-        rounding_t : int, optional
-            The number of rounding decimals of the UNIX TIME measurements.
-            The default is 9.
-        rounding_v : int, optional
-            The number of rounding decimals of the VOLTAGE measurements. 
-            The default is 3.
-        scale_v : float, optional
-            SCALING FACTOR by which all voltage measurements will be 
-            multiplied. The default is 1.
-        """
-        
-        self.__name = name
-        self.__filetype = filetype
-        self.__use_header = use_header       
-        self.__header = header
-        self.__rounding_t = rounding_t
-        self.__rounding_v = rounding_v
-        self.__scale_v = scale_v
-        
-        self.__filename = self.generate_filename()
+    def rz(self, angle, deg=True):
+        if deg:
+            angle *= np.pi / 180
+        return np.array([[np.cos(angle), -np.sin(angle), 0],
+                         [np.sin(angle),  np.cos(angle), 0],
+                         [            0,              0, 1]])
+
+    def rotateX(self, vector, angle, deg=True):
+        return np.dot(self.rx(angle, deg=deg), vector)
+
+    def rotateY(self, vector, angle, deg=True):
+        return np.dot(self.ry(angle, deg=deg), vector)
+
+    def rotateZ(self, vector, angle, deg=True):
+        return np.dot(self.rz(angle, deg=deg), vector)
 
 
-    #%% GENERATION METHODS
-    
-    def generate_n_samples(self):
-        self.__n_samples = self.__recording_time*self.__sr
+def data_rotate(data, rotation_matrix):
+    for i in range(len(data[0])):
+        vtemp = np.dot(rotation_matrix, np.array([data[1][i],
+                                                  data[2][i],
+                                                  data[3][i]]))
+        data[1][i], data[2][i], data[3][i] = vtemp[0], vtemp[1], vtemp[2]
+    return data
+
+def data_add_vector(data, vector):
+    assert len(vector) == len(data)-1
+    # Loops over entire length of dataset
+    for i in range(len(data[0])):
+        # Loops over separate data lanes, skipping the first
+        for i_data in range(len(data)-1):
+            data[i_data+1][i] += vector[i_data]
+    return data
+
+def multipart_filenames(filename_base, n_files):
+    """
+    Generates filenames for multipart file splits. This function is here so
+     that it can both be used for generating these names in other functions,
+     and so it can be used by a user to generate lists of filenames with the
+     exact same algorithm (to reduce the risk of bugs).
+    """
+    filenames = []
+    for i in range(1, n_files+1):
+        filenames.append(
+            filename_base[:-4]
+            + "_s{}of{}".format(i, n_files)
+            + filename_base[-4:]
+        )
+    return filenames
+
+def read_data(filename, header=False, len_header=9):
+    """
+    Reads data from data file and formats it to a format that other functions
+     can use.
+    """
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        if lines[0][0:2] == "!H" or header is True:
+            lines = lines[len_header+1:]
+
+        t, x, y, z = [0] * len(lines), [0] * len(lines), [0] * len(lines), [0] * len(lines)
+
+        for i in range(len(lines)):
+            [tt, xx, yy, zz] = lines[i].split(" ")
+            [t[i], x[i], y[i], z[i]] = \
+                [np.double(tt), float(xx), float(yy), float(zz)]
+        return [t, x, y, z]
+
+def write_data(filename, data, mode="a", verbose=0):
+    with open(filename, mode) as fo:
+        for i in range(len(data[0])):
+            fo.write("{} {} {} {}\n".format(data[0][i],
+                                            data[1][i],
+                                            data[2][i],
+                                            data[3][i]))
+    if verbose >= 2:
+        print("Appended {} entries to {}".format(len(data[0]), filename))
+
+def data_merge(filenames, filename_merge: str = None, len_header=9, verbose=0):
+    """
+    Takes a list of filenames of data files to be merged. Doing so will create
+     a merge file which copies the header of the first file, and appends the
+     data of all files sequentially to this file.
+
+    Use filename_merge to specify a name for the merge file. If unspecified,
+     it will be based on the first filename in filenames.
+
+    This function is not optimized for >RAM datasets.
+    """
+
+    # If unspecified, base filename of merged file on first file
+    if filename_merge is None:
+        filename_merge = filenames[0][:-4]+"_MERGED"+filenames[0][-4:]
+
+    # Create empty merged file
+    with open(filename_merge, 'x') as fo:
+        if verbose >= 2:
+            print("Created merge file {}".format(filename_merge))
+
+    # Copy header from first file
+    with open(filenames[0], 'r') as f, open(filename_merge, 'a') as fo:
+        for i in range(len_header-1):
+            fo.write(f.readline())
+
+    # Sequentially append contents of all files in filenames list to the
+    # merged file
+    for filename in filenames:
+        write_data(filename_merge,
+                   read_data(filename,
+                             header=True,
+                             len_header=len_header-2)
+                   )
+        if verbose >= 2:
+            print("Appended contents of {} to merge file".format(filename))
+
+def data_downsample(filenames, downsampling_factor,
+                    len_header=9, verbose=0):
+    """
+    Function that takes a list of filenames, and downsamples them by an integer
+     factor.
+
+     This function is not meant for >RAM files, and the whole dataset will be
+     read into memory when processing. To downsample a >RAM dataset, first cut
+     it into segments using the DataProcessor class before downsampling.
+     The downsampled segments can then be merged using the data_merge function.
+    """
+
+    # Loop over all filenames in filenames object
+    for filename in filenames:
+
+        # Load data
+        data = read_data(filename, header=True)
+
+        # Determine the number of chunks in which data can be subdivided:
+        chunks, _ = divmod(len(data[0]), downsampling_factor)
+
+        # Pre-allocate object for downsampled data
+        data_sparse = [[0.]*chunks, [0.]*chunks, [0.]*chunks, [0.]*chunks]
+
+        # Every <downsampling_factor> sample the data and save to the new set
+        i_chunk = 0
+        while i_chunk < chunks:
+            for v in range(len(data)):
+                data_sparse[v][i_chunk] = data[v][0+i_chunk*downsampling_factor]
+            i_chunk += 1
+
+        # Generate filename for new file
+        flag = "_SPARSE" + str(downsampling_factor)
+        filename_sparse = filename[:-4] + flag + filename[-4:]
+
+        # Create empty merged file
+        with open(filename_sparse, 'x') as fo:
+            if verbose >= 2:
+                print("Created merge file {}".format(filename_sparse))
+
+        # Copy header from first file
+        with open(filename, 'r') as f, open(filename_sparse, "a") as fo:
+            for i in range(len_header):
+                fo.write(f.readline())
+            if verbose >= 2:
+                print("Copied header from {}".format(filename))
+
+        write_data(filename_sparse, data_sparse, mode="a", verbose=verbose)
+
+def data_rfft_legacy(data, sample_rate=None):  # TODO: Remove
+    # Autodetermine sample rate when not given.
+    # Assumes constant sample rate.
+    if sample_rate is None:
+        sample_rate = round(len(data[1]) / (data[0][-1] - data[0][0]), 3)
+
+    x_t = rfft(data[1])
+    x_f = rfftfreq(len(data[1]), 1 / sample_rate)
+
+    y_t = rfft(data[2])
+    y_f = rfftfreq(len(data[2]), 1 / sample_rate)
+
+    z_t = rfft(data[3])
+    z_f = rfftfreq(len(data[3]), 1 / sample_rate)
+
+    return [[x_t, x_f], [y_t, y_f], [z_t, z_f]]
+
+def data_rfft(data, sample_rate=None):
+    """
+    Performs a one-sided (non-complex) Fast Fourier Transform on the data.
+     If the sample rate is not specified via sample_rate, it will be
+     auto-determined.
+    """
+    # Autodetermine sample rate when not given.
+    # Assumes constant sample rate.
+    if sample_rate is None:
+        sample_rate = round(len(data[1]) / (data[0][-1] - data[0][0]), 3)
+    n_samples = len(data[0])
+
+    f = rfftfreq(n_samples, 1 / sample_rate)
+    # x_t = rfft(data[1] * np.hanning(n_samples))
+    # x_t = rfft(data[1])
+    x_t = rfft(data[1])
+    y_t = rfft(data[2])
+    z_t = rfft(data[3])
+
+    return [f, np.abs(x_t), np.abs(y_t), np.abs(z_t)]
+    # return [f, x_t, y_t, z_t]
+
+
+# def vector_normal_distribution(vectors: list):
+#     mean_x = 0
+#     mean_y = 0
+#     mean_z = 0
+#
+#     sd_x = 0
+#     sd_y = 0
+#     sd_z = 0
+#
+#     for vector in vectors:
+#         mean_x += vector[0]
+#         mean_y += vector[1]
+#         mean_z += vector[2]
+#
+#     mean_x = mean_x / len(vectors)
+#     mean_y = mean_y / len(vectors)
+#     mean_z = mean_z / len(vectors)
+#
+#     for vector in vectors:
+#         sd_x += (vector[0] - mean_x) ** 2
+#         sd_y += (vector[1] - mean_y) ** 2
+#         sd_z += (vector[2] - mean_z) ** 2
+#
+#     sd_x = (sd_x / len(vectors)) ** 0.5
+#     sd_y = (sd_y / len(vectors)) ** 0.5
+#     sd_z = (sd_z / len(vectors)) ** 0.5
+#
+#     return [np.array([mean_x, mean_y, mean_z]), np.array([sd_x, sd_y, sd_z])]
+
+def data_normal_distribution(data: list):
+    l_data = len(data[0])
+
+    mean_x = sum(data[1])/l_data
+    mean_y = sum(data[2])/l_data
+    mean_z = sum(data[3])/l_data
+
+    sd_x = 0
+    sd_y = 0
+    sd_z = 0
+
+    for i in range(l_data):
+        sd_x += (data[1][i] - mean_x) ** 2
+        sd_y += (data[2][i] - mean_y) ** 2
+        sd_z += (data[3][i] - mean_z) ** 2
+
+    sd_x = (sd_x / l_data) ** 0.5
+    sd_y = (sd_y / l_data) ** 0.5
+    sd_z = (sd_z / l_data) ** 0.5
+
+    return [np.array([mean_x, mean_y, mean_z]), np.array([sd_x, sd_y, sd_z])]
+
+def data_savgol_filter(data, windowlength, polyorder=4):
+    # Smooths three data channels using a Savitzky-Golay filter
+    # Data must be in type A
+    x_filtered = savgol_filter(data[1], windowlength, polyorder)
+    y_filtered = savgol_filter(data[2], windowlength, polyorder)
+    z_filtered = savgol_filter(data[3], windowlength, polyorder)
+    return [data[0], x_filtered, y_filtered, z_filtered]
+
+# def zipBA(dataB):
+#     # Zips data from type B to type A
+#     # Type A: [
+#     #   [t_0 ... t_n],
+#     #   [Bx_0 ... Bx_n],
+#     #   [By_0 ... By_n],
+#     #   [Bz_0 ... Bz_n],
+#     # ]
+#     #
+#     # Type B: [
+#     #   [t_0, np.array(Bx_0, By_0, Bz_0)] ... [t_n, np.array(Bx_n, By_n, Bz_n)]
+#     # ]
+#     n = len(dataB)
+#     dataA = [[0.] * n, [0.] * n, [0.] * n, [0.] * n]
+#     for i in range(len(dataB)):
+#         dataA[0][i] = dataB[i][0]
+#         dataA[1][i] = dataB[i][1][0]
+#         dataA[2][i] = dataB[i][1][1]
+#         dataA[3][i] = dataB[i][1][2]
+#     return dataA
+
+# def ReadData(filename, header=False):
+#     with open(filename, 'r') as f:
+#         lines = f.readlines()
+#         if lines[0][0:2] == "!H" or header == True:
+#             lines = lines[1:]
         
-        
-    def generate_filename(self):     
-        # Remove space characters from name to avoid complications
-        name = self.__name.replace(" ", "_")
-        
-        timestamp = str(datetime.utcfromtimestamp(time()).strftime('%Y-%m-%d_%H.%M.%S'))
-        filetype = "." + self.__filetype.lstrip(".")
-        
-        if name == "output" or name == "":
-            filename = "output"+"_"
-        else:
-            filename = name+"_"
-            
-        # filename += str(self.__recording_time)+"_"+str(self.__sr)+"_"
-        filename += timestamp+filetype 
-        
-        return filename
-  
-    def generate_header(self, timestamp: float):
-        """ 
-        Writes a static header to a specified output file. 
-        Will create the file, and throw an error if it already exists.
-        """
-        with open(self.__filename, 'x') as output_file:
-            # Write header
-            # header = f"{'!H time UNIX [s]'.rjust(14, ' ')} {'Bx [uT]'.rjust(10, ' ')} {'Bx [uT]'.rjust(10, ' ')} {'Bx [uT]'.rjust(10, ' ')} \n"
-            header  = "!H________RECORDING PROPERTIES__________\n"
-            header += "Date: "+ \
-                str(datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d'))
-            header += "   Start time: "+ \
-                str(datetime.utcfromtimestamp(timestamp).strftime('%H:%M:%S'))
-            header += "\n\n"
-            header += "Duration:          "+str(self.__recording_time)
-            header += "s ("+str(round(self.__recording_time/3600,2))+" h)\n"
-            header += "Total samples:     "+str(self.__n_samples)+"\n"
-            header += "Sampling rate:     "+str(self.__sr)+" S/s \n"
-            header += "Channels:          "+str(self.__n_channels)
-            header += " ["+str(self.__v_min)+", "+str(self.__v_max)+"] V\n"
-            header += "Buffer size:       "+str(self.__buffer_size)
-            header += " x "+str(self.__n_buffers)+"\n"
-            header += "________________________________________\n"
+#         t, x, y, z = [0]*len(lines), [0]*len(lines), [0]*len(lines), [0]*len(lines)
                 
-                
-            output_file.write(header)
-        output_file.close()
-
-    # def generate_header_old(self):
-    #     """ 
-    #     Writes a static header to a specified output file. 
-    #     Will create the file if it does not exist.
-    #     """
-    #     # TODO: Expand function to display recording properties card
-    #     with open(self.__filename, 'x') as output_file:
-    #         # Write header
-    #         header = f"{'!H time UNIX [s]'.rjust(14, ' ')} {'Bx [uT]'.rjust(10, ' ')} {'Bx [uT]'.rjust(10, ' ')} {'Bx [uT]'.rjust(10, ' ')} \n"
-    #         output_file.write(header)
-    #     output_file.close()
-
-    def progress_update(self, t0, n_loops, i_loop):
-        t_elapsed = time()-t0
-        t_eta = t_elapsed*(n_loops)/(i_loop+1)
-        
-        print("Progress:", 
-              str(Fore.GREEN+str(i_loop+1).rjust(3," ") +" / "+str(n_loops)),
-              "  |  Time elapsed:", Fore.CYAN+str(round(t_elapsed)),
-              "s - remaining:", Fore.CYAN+str(round(t_eta-t_elapsed)),"s")
-
-    
-    def generate_simulation_summary(self):
-        if self.__verbose >= 4:
-            print("generate_simulation_summary() called.")
-            
-        # now = time()
-        # n_samples = duration*sr
-        # name = GenerateFilename(name, duration, sr, folder=folder, filetype=filetype, verbose=verbose)
-       
-        # estimated_filesize = EstimateFilesize(n_samples)
-        # estimated_memory = EstimateMemory(n_samples, sr)
-        
-        # print(Fore.CYAN + " ==== Simulation summary ==== ")
-        # print("Selected duration:       ", duration, "s") 
-        # print("Sample rate:             ", sr, "S/s")     
-        # print("Total samples:           ", n_samples, "samples")
-        # print("Estimated memory usage:  ", estimated_memory, "MB")  # TODO add memory estimation
-        # print("Estimated file size:     ", estimated_filesize, "MB")
-        # print(" ")
-        # print("Current time:            ", datetime.utcfromtimestamp(now).strftime('%Y-%m-%d_%H.%M.%S'))
-        # print("Expected time at finish: ", datetime.utcfromtimestamp(now+duration).strftime('%Y-%m-%d_%H.%M.%S'))
-        # print(" ")
-        # print("Saving to:", str(Fore.CYAN + name))
-        # print(Fore.CYAN + " ============================ ")   
-
-    #%% RECORDING METHODS
-
-    def setup_channels(self, taskHandle: ctypes.c_void_p):
-        """
-        Sets up a number (up to four) of analog voltage channels within the 
-        context of a DAQmx Task object. 
-
-        Parameters
-        ----------
-        taskHandle : ctypes.c_void_p
-            Handle of the DAQmx Task object.
-
-        Returns
-        -------
-        channels : list
-            List with all analog voltage channel objects.
-        """
-            
-        hw_channel_names = ("Dev1/ai0", "Dev1/ai1", "Dev1/ai2", "Dev1/ai3")
-        
-        channels = []
-        
-        for channel in range(self.__n_channels):
-            # Create a channel to measure voltage, and add the channel to the 
-            # task specified by the taskhandle.
-            
-            chan = PyDAQmx.DAQmxCreateAIVoltageChan(
-                taskHandle,                 # TaskHandle object to link task
-                hw_channel_names[channel],  # Name of the physical channel
-                "",                         # Name assigned to virtual channel
-                PyDAQmx.DAQmx_Val_Diff,     # Input terminal config -> look at https://documentation.help/NI-DAQmx-C-Functions/DAQmxCreateAIVoltageChan.html
-                self.__v_min,               # minVal of voltage in <units>
-                self.__v_max,               # maxVal of voltage in <units>
-                PyDAQmx.DAQmx_Val_Volts,    # Meaning of <units>
-                None                        # Name of custom scale to apply to channel
-                )
-            channels.append(chan)
-        
-        return channels
-    
-    def setup_buffers(self):
-        buffers = []
-        tstart_buffers = []
-        
-        buffer_length = self.__buffer_size*self.__n_channels
-        
-        for buffer in range(self.__n_buffers):
-            buffers.append(np.zeros((buffer_length,), dtype=np.float64))
-            tstart_buffers.append(0.0)
-        
-        if self.__verbose >= 3:
-            print("Successfully set up", len(buffers),
-                  "buffers of length", self.__buffer_size,".")
-        
-        return buffers, tstart_buffers
-        
-
-    def idle(self, start_event: threading.Event, predelay: float):
-        """
-        Idling thread implementing a predelay pause.
-
-        Parameters
-        ----------
-        start_event : threading.Event
-            Threading event that marks the moment the recording may start.
-        predelay : float
-            Predelay in seconds.
-
-        Returns
-        -------
-        None.
-
-        """
-        sleep(predelay)
-        start_event.set()
-        if self.__verbose >= 3:
-            print("Starting simulation after a",predelay,"s predelay.")
-    
-    
-    def record(self, predelay: float = 0):
-        
-        t0 = time() # Mark start of recording function
-        
-        # Verbosity warning:
-        self.verbosity_warning()
-        
-        # If buffer_size is unspecified (-1), then auto-set it to:
-        #   - if n_samples < 10000: buffer_size = int(sr)
-        #   - if n_samples >= 10000: buffer_size = 1% of n_samples
-        if self.__buffer_size == -1:
-            if self.__n_samples < 10_000:
-                self.__buffer_size = int(self.__sr)
-            elif self.__n_samples >= 10_000:
-                self.__buffer_size = int(0.01*self.__n_samples)
-                
-        # Round up sample number to nearest specified buffer size, if this 
-        # is allowed and required, respectively.
-        if self.__allow_n_samples_rounding:
-            dmq, dmm = divmod(self.__n_samples, self.__buffer_size)
-            if dmm != 0:
-                if self.__verbose >= 1:
-                    print("Note: Number of samples was rounded up from",
-                          self.__n_samples, "to", (dmq+1)*self.__n_samples)
-                self.__n_samples = (dmq+1)*self.__buffer_size
-        
-        # Number of loops to perform based on n_samples and buffer_size
-        n_loops = int(self.__n_samples/self.__buffer_size)
-        
-        # Pre-fill data file with header
-        if self.__use_header:
-            self.generate_header(t0)
-        
-        # Initializing global buffer objects:
-        global buffers, tstart_buffers
-        # buffers = []
-        # tstart_buffers = []
-        buffers, tstart_buffers = self.setup_buffers()
-        len_buffers = len(buffers)
-        
-        # global buffer1, buffer2, buffers
-        # buffer1 = np.zeros((BUFFER_SIZE*N_CHANNELS,), dtype=np.float64)
-        # buffer2 = np.zeros((BUFFER_SIZE*N_CHANNELS,), dtype=np.float64)
-        # buffers = [buffer1, buffer2]
-        # len_buffers = len(buffers)
-        # global tstart_buffer1, tstart_buffer2, tstart_buffers
-        # tstart_buffer1 = 0.0
-        # tstart_buffer2 = 0.0
-        # tstart_buffers = [tstart_buffer1, tstart_buffer2]
-        
-        # Declaration of Task handle object
-        taskHandle = PyDAQmx.TaskHandle()
-        # TODO: Clarify this step
-        read = PyDAQmx.DAQmxTypes.int32()
-        
-        try:
-            # DAQmx Configure Code
-            # Create the task object, give it a name, and pass the taskhandle object
-            #   by reference (using byref() from ctypes)
-            PyDAQmx.DAQmxCreateTask("Record",ctypes.byref(taskHandle))
-        
-            # Configure the channels and route them to the task object
-            self.setup_channels(taskHandle)
-            
-            # Configure clock settings on datalogger
-            PyDAQmx.DAQmxCfgSampClkTiming(
-                taskHandle,                     # TaskHandle object to link task
-                "",                             # The source terminal of the sample clock (if nothing, it uses internal device clock)
-                self.__sr,                      # The sampling rate in samples per second per channel
-                PyDAQmx.DAQmx_Val_Rising,       # Active edge, essentially whether samples are gathered at the rising or falling edge of the clock signal
-                PyDAQmx.DAQmx_Val_ContSamps,    # Specify whether finite number of samples are gathered, whether continuous samples are gathered until the task is stopped, or whether to use hardware timed single point sample mode.
-                self.__buffer_size              # Number of samples to acquire or generate for EACH channel in the task (only if FiniteSamps mode is on). If ContSamps is on, this value determines buffer size.
-                )
-            
-            # Start Task (overhead ~1000 ns)
-            PyDAQmx.DAQmxStartTask(taskHandle)  # Transitions the task from the committed state to the running state, which begins measurement or generation.
-    
-            if self.__verbose >= 3:
-                print("Setup complete.")
-                
-            # If predelay is specified, idle in thread until it is time to start
-            leftover_delay = time()-t0 - predelay
-            if leftover_delay > 0:
-                start_event = threading.Event()
-                th_idle = threading.Thread(
-                    target=self.idle, 
-                    args=(start_event, leftover_delay)
-                    )
-                th_idle.daemon = True
-                th_idle.start()
-                th_idle.join()      
-                
-            if self.__verbose >= 3:
-                print("Starting loop...")
-            t1 = time()
-            
-            try:
-                for i_loop in range(n_loops):
-                    
-                    th_daq  = threading.Thread(
-                        target=self.daq, 
-                        args=(taskHandle, i_loop%len_buffers, read)
-                        )
-                    th_write = threading.Thread(
-                        target=self.write, 
-                        args=(self.__filename,(i_loop-1)%len_buffers)
-                        )
-                    th_daq.daemon = True
-                    th_write.daemon = True
-                    
-                    th_daq.start()
-                    if i_loop != 0:
-                        th_write.start()
-                        th_write.join() # New DAQ thread may not start before writing is done.
-                    th_daq.join() # Wait for DAQ to finish before starting new loop
-            
-                    if self.__verbose >= 2:
-                        self.progress_update(t1, n_loops, i_loop)
-            except (KeyboardInterrupt, SystemExit):
-                print("Threads terminated by KeyboardInterrupt.")
-                # This implementation may lead to import lock, see also:
-                # https://stackoverflow.com/questions/46290045/import-silently-kills-thread/46354248#46354248
-                # TODO: See if this requires addressing and if so, how exactly.
-                
-            if self.__verbose >= 4:
-                print("Loop finished.")  
-        except PyDAQmx.DAQError as err:
-            print("DAQmx Error:",err)
-        finally:
-            if taskHandle:
-                # Terminate DAQmx task object
-                PyDAQmx.DAQmxStopTask(taskHandle)
-                PyDAQmx.DAQmxClearTask(taskHandle)
-                if self.__verbose >= 4:
-                    print("Task terminated succesfully.")  
-            if self.__verbose >= 4:
-                print("Program done.")              
-        # ========================
-
-    def daq(self, taskHandle, i_buffer, read):
-        """ 
-        Threaded data acquisition function.
-        """
-        if self.__verbose >= 4:
-            print("daq() called. Reading to buffer", i_buffer,"...")
-            if self.__verbose >= 5:
-                t_start = time()
-        
-        tstart_buffers[i_buffer] = time()
-        
-        # DAQmx Read Code
-        PyDAQmx.DAQmxReadAnalogF64(         # Reads multiple floating-point samples from a task that contains one or more analog input channels.
-            taskHandle,                     # TaskHandle object to link task
-            self.__buffer_size,             # The number of samples, per channel, to read. If readArray does not contain enough space, this function returns as many samples as fit in readArray.
-            1.5*(self.__buffer_size/self.__sr), # The timeout in seconds. (here 1.5x of expected duration)
-            PyDAQmx.DAQmx_Val_GroupByChannel, # fillMode: interleaving is OFF with DAQmx_Val_GroupByChannel and ON with DAQmx_Val_GroupByScanNumber
-            buffers[i_buffer],              # readArray
-            self.__buffer_size*self.__n_channels,# length of the readArray
-            ctypes.byref(read),             # data type of readArray passed by reference?
-            None                            # Reserved field?
-            )
-        
-        if self.__verbose >= 4:
-            print("daq() finished.")
-            if self.__verbose >= 5:
-                t_end = time()
-                t_eta = t_start+self.__buffer_size/self.__sr
-                print("Expected duration:",round(t_eta-t_start,6),"s")
-                print("Actual duration:  ",round(t_end-t_start,6),"s")
-                print("Time shift",
-                      round(1_000_000*(t_end-t_eta),1),
-                      "ns")
-                print("Delay factor:     ",
-                      round(100*((t_end-t_start)/(t_eta-t_start)-1),1),
-                      "%")
-    
-
-    def write(self, filename, i_buffer, empty_buffer=True):
-        """ 
-        Threaded data writing function.
-        """
-        if self.__verbose >= 4:
-            print("write() called. Writing from buffer", i_buffer,"...")
-            if self.__verbose >= 5:
-                t0 = time()
-        
-        with open(filename, 'a') as output_file:
-            for sample in range(self.__buffer_size):
-                # TODO: Make universal for n_channels:
-                # Can construct "{} {} ... {}\n" string and then
-                # array = round(buffers[i_buffer][0][buffer_line],rounding_v)
-                # then use "{} {} ... {}\n".format(t_term, *array)
-    
-                line = "{} {} {} {}\n".format(
-                    round(tstart_buffers[i_buffer]
-                          +sample*self.__dt,self.__rounding_t),
-                    round(self.__scale_v 
-                          * buffers[i_buffer][sample],
-                          self.__rounding_v),
-                    round(self.__scale_v 
-                          * buffers[i_buffer][sample+1*self.__buffer_size], 
-                          self.__rounding_v),
-                    round(self.__scale_v 
-                          * buffers[i_buffer][sample+2*self.__buffer_size], 
-                          self.__rounding_v),
-                    )
-    
-                output_file.write(line)
-            
-        output_file.close()
-        
-        if self.__verbose >= 5:
-            t1 = time()
-        
-        # Empty the buffer, for small overhead gain increased "debuggability".
-        if empty_buffer:
-            buffers[i_buffer] = np.zeros((self.__buffer_size*self.__n_channels,), 
-                    dtype=np.float64)
-            tstart_buffers[i_buffer] = 0.0
-    
-        if self.__verbose >= 5:
-            t2 = time()
-    
-        if self.__verbose >= 4:
-            print("write() finished.")
-            if self.__verbose >= 5:
-                print("Total time taken:          ",
-                      round(1000*(time()-t0),3), "ms")
-                print("Time spent writing:        ",
-                      round(1000*(t1-t0),3), "ms")
-                print("Time spent emptying buffer:",
-                      round(1000_000*(t2-t1),3), "ns")
-                
-    def verbosity_warning(self):
-        if self.__verbose > 1:
-            print("Note: Higher levels of verbosity may add additional overhead.")
-    
-#%% OTHER FUNCTIONS    
-    
-    
-# def TestProgressBar(n_samples, sr):
-#     progress_bar_disable = False
-#     progress_items = 100
-#     progress_bar = tqdm(range(progress_items), ncols=80, 
-#                     disable = progress_bar_disable,
-#                     colour="CYAN",  position=0, leave=True,
-#                     desc="TEST BAR", postfix=" ".ljust(16," "),
-#                     bar_format="{l_bar}{bar}| {elapsed} - ETA:{remaining}{postfix}")
-#     update_interval = n_samples/100
-#     for i in range(n_samples):
-#         if i%update_interval == 0:
-#             progress_bar.update(1)
-#         sleep(1/sr)
-        
+#         for i in range(len(lines)):
+#             [tt, xx, yy, zz] = lines[i].split(" ")
+#             [t[i], x[i], y[i], z[i]] = \
+#                 [np.double(tt), float(xx), float(yy), float(zz)]
+#         return [t, x, y, z]
 
 
-# def SetupProgressBar(n_samples, progress_bar_disable=False):
-#     progress_bar_disable = False
-#     progress_items = 100
-#     progress_bar = tqdm(range(progress_items), ncols=80, 
-#                     disable = progress_bar_disable,
-#                     colour="CYAN",  position=0, leave=True,
-#                     desc="Recording", postfix=" ".ljust(24," "),
-#                     bar_format="{l_bar}{bar}| {elapsed} - ETA:{remaining}{postfix}")
-#     update_interval = n_samples/100
-#     return progress_bar, update_interval
+def time_plot(data, ylim=(-100, 100)):
 
-# def SimulationSummary(duration, sr, name="", folder="", filetype=".dat", verbose=0):
+    fig = plt.figure(figsize=(8, 8))
+    gs = GridSpec(6,1)
 
-#     now = time()
-#     n_samples = duration*sr
-#     name = GenerateFilename(name, duration, sr, folder=folder, filetype=filetype, verbose=verbose)
-   
-#     estimated_filesize = EstimateFilesize(n_samples)
-#     estimated_memory = EstimateMemory(n_samples, sr)
-    
-#     print(Fore.CYAN + " ==== Simulation summary ==== ")
-#     print("Selected duration:       ", duration, "s") 
-#     print("Sample rate:             ", sr, "S/s")     
-#     print("Total samples:           ", n_samples, "samples")
-#     print("Estimated memory usage:  ", estimated_memory, "MB")  # TODO add memory estimation
-#     print("Estimated file size:     ", estimated_filesize, "MB")
-#     print(" ")
-#     print("Current time:            ", datetime.utcfromtimestamp(now).strftime('%Y-%m-%d_%H.%M.%S'))
-#     print("Expected time at finish: ", datetime.utcfromtimestamp(now+duration).strftime('%Y-%m-%d_%H.%M.%S'))
-#     print(" ")
-#     print("Saving to:", str(Fore.CYAN + name))
-#     print(Fore.CYAN + " ============================ ")   
+    ax1 = fig.add_subplot(gs[0,0])
 
+    ax1.set_axis_off()
+    pos_x = 0.1
+    pos_y = 0.5
+    pos_z = 0.9
 
-# def ProgressReport(S, n_samples, sr, t_start):
-#     progress = round(S/n_samples*100,0)
-#     t_actual = time()-t_start
-#     t_expected = t_start+1/sr*S
-#     t_behind = t_expected-t_actual
-#     delay_factor = t_actual/t_expected
-#     t_eta = delay_factor*(t_start+n_samples/sr)
-    
-#     print("Progress:", 
-#           progress,
-#           "%. | Running for:", 
-#           datetime.utcfromtimestamp(t_actual).strftime('%H:%M:%S'),
-#           "(",
-#           round(t_behind,1),
-#           "s behind schedule) | ETA:",
-#           datetime.utcfromtimestamp(t_eta).strftime('%H:%M:%S')
-#           )
+    ax1.text(pos_x, 0.8, str(round(data[1][len(data)],3)),
+             ha="center", fontsize=26)
+    ax1.text(pos_x, 0.3, "uT",
+             ha="center", fontsize=16)
 
-def print_version(version, date, name, verbose=0):
-    """Prints version number if verbosity >= 0, and additionally prints
-        program name and version date if verbosity is >= 1."""
-    if verbose == 0:
-        print(version)    
-    elif verbose >= 1:
-        print(Fore.CYAN + name)
-        print(version)
-        print(Fore.CYAN + date)
-    
+    ax1.text(pos_y, 0.8, str(round(data[2][len(data)],3)),
+             ha="center", fontsize=26)
+    ax1.text(pos_y, 0.3, "uT",
+             ha="center", fontsize=16)
+
+    ax1.text(pos_z, 0.8, str(round(data[3][len(data)],3)),
+             ha="center", fontsize=26)
+    ax1.text(pos_z, 0.3, "uT",
+             ha="center", fontsize=14)
+
+    ax2 = fig.add_subplot(gs[1:, 0])
+    ax2.set_ylim(ylim[0], ylim[1])
+    ax2.plot(data[0], data[1], color='red')
+    ax2.plot(data[0], data[2], color='green')
+    ax2.plot(data[0], data[3], color='blue')
+
+    plt.show()
+
 def analyse_rate(data, n_samples, sr, verbose=0):
-    """Analyses the time between each sample from the UNIX datapoints, and 
+    """Analyzes the time between each sample from the UNIX datapoints, and 
         performs basic statistical analysis on them."""
         
-    timings = array("d", [0]*(n_samples-1))
+    timings = [0]*(n_samples-1)
     
     for i in range(len(data[0])-1):
         timings[i] = data[0][i+1] - data[0][i]
@@ -737,3 +395,309 @@ def analyse_rate(data, n_samples, sr, verbose=0):
     sd = sd/len(timings)
     
     return timings, mean, sd
+
+
+def sampling_plot(data, sr):
+    rateanalysis = analyse_rate(data, len(data[0]), sr)
+    
+    sampling_intervals = rateanalysis[0]
+    
+    fig = plt.figure(figsize=(8, 8))
+    gs = GridSpec(6,1)
+
+    ax2 = fig.add_subplot(gs[1:,0])
+    
+    ax2.plot(list(range(len(sampling_intervals))), sampling_intervals, color='black')
+
+
+# def create_hhc_elements(coil_sides, coil_spacings):
+#     # Unpacking coil sides into X/Y/Z
+#     [coilX_side, coilY_side, coilZ_side] = coil_sides  # [m]
+#     # Unpacking coil spacings into X/Y/Z
+#     [coilX_spacing, coilY_spacing, coilZ_spacing] = coil_spacings
+#
+#     coilXp = Face(Vertex([coilX_spacing / 2, coilX_side / 2, coilX_side / 2]),
+#                   Vertex([coilX_spacing / 2, -coilX_side / 2, coilX_side / 2]),
+#                   Vertex([coilX_spacing / 2, -coilX_side / 2, -coilX_side / 2]),
+#                   Vertex([coilX_spacing / 2, coilX_side / 2, -coilX_side / 2]))
+#     coilXn = Face(Vertex([-coilX_spacing / 2, coilX_side / 2, coilX_side / 2]),
+#                   Vertex([-coilX_spacing / 2, -coilX_side / 2, coilX_side / 2]),
+#                   Vertex([-coilX_spacing / 2, -coilX_side / 2, -coilX_side / 2]),
+#                   Vertex([-coilX_spacing / 2, coilX_side / 2, -coilX_side / 2]))
+#
+#     coilYp = Face(Vertex([coilY_side / 2, coilY_spacing / 2, coilY_side / 2]),
+#                   Vertex([coilY_side / 2, coilY_spacing / 2, -coilY_side / 2]),
+#                   Vertex([-coilY_side / 2, coilY_spacing / 2, -coilY_side / 2]),
+#                   Vertex([-coilY_side / 2, coilY_spacing / 2, coilY_side / 2]))
+#     coilYn = Face(Vertex([coilY_side / 2, -coilY_spacing / 2, coilY_side / 2]),
+#                   Vertex([coilY_side / 2, -coilY_spacing / 2, -coilY_side / 2]),
+#                   Vertex([-coilY_side / 2, -coilY_spacing / 2, -coilY_side / 2]),
+#                   Vertex([-coilY_side / 2, -coilY_spacing / 2, coilY_side / 2]))
+#
+#     coilZp = Face(Vertex([coilZ_side / 2, coilZ_side / 2, coilZ_spacing / 2]),
+#                   Vertex([-coilZ_side / 2, coilZ_side / 2, coilZ_spacing / 2]),
+#                   Vertex([-coilZ_side / 2, -coilZ_side / 2, coilZ_spacing / 2]),
+#                   Vertex([coilZ_side / 2, -coilZ_side / 2, coilZ_spacing / 2]))
+#     coilZn = Face(Vertex([coilZ_side / 2, coilZ_side / 2, -coilZ_spacing / 2]),
+#                   Vertex([-coilZ_side / 2, coilZ_side / 2, -coilZ_spacing / 2]),
+#                   Vertex([-coilZ_side / 2, -coilZ_side / 2, -coilZ_spacing / 2]),
+#                   Vertex([coilZ_side / 2, -coilZ_side / 2, -coilZ_spacing / 2]))
+#
+#     return [[coilXn, coilXp], [coilYn, coilYp], [coilZn, coilZp]]
+#
+# def create_cuboid(lx, ly, lz, ox=0, oy=0, oz=0):
+#     # Define vertices
+#     p1 = Vertex([ lx/2,  ly/2,  lz/2])      # .   7___ 6
+#     p2 = Vertex([-lx/2,  ly/2,  lz/2])      # .   |\8__\5
+#     p3 = Vertex([-lx/2, -ly/2,  lz/2])      # .   | |  |        Y
+#     p4 = Vertex([ lx/2, -ly/2,  lz/2])      # .  3| | 2| -------->
+#     p5 = Vertex([ lx/2,  ly/2, -lz/2])      # .    \|__|
+#     p6 = Vertex([-lx/2,  ly/2, -lz/2])      # .    4  \ 1
+#     p7 = Vertex([-lx/2, -ly/2, -lz/2])      # .        \
+#     p8 = Vertex([ lx/2, -ly/2, -lz/2])      # .         v X
+#
+#     # Define faces
+#     fA = Face(p1, p4, p3, p2)  # .  E ___
+#     fB = Face(p3, p4, p8, p7)  # .   |\ F_\
+#     fC = Face(p4, p1, p5, p8)  # . B | |  | D        Y
+#     fD = Face(p1, p2, p6, p5)  # .   | | C|  -------->
+#     fE = Face(p2, p3, p7, p6)  # .    \|__|
+#     fF = Face(p5, p6, p7, p8)  # .      A
+#
+#     # Assembling geometry
+#     cuboid = Geometry([fA, fB, fC, fD, fE, fF])
+#
+#     # frame = Frame()
+#     # # Attaching the cuboid Geometry to 'frame1'
+#     # frame.add_geometry(cuboid)
+#     # # Translate 'frame1' away from the origin.
+#     # frame.translate(ox, oy, oz)
+#     return cuboid
+#
+# def create_table(leg_height=1.23, leg_width=0.04, leg_spacing=0.52,
+#                  top_side=0.61, top_height=0.02, ox=0, oy=0, oz=-1.25):
+#
+#     frame_legs = Frame()
+#     frame_top = Frame()
+#
+#     geometries_legs = []
+#
+#     # leg1 = create_cuboid(
+#     #     leg_width, leg_width, leg_height,
+#     #     1*leg_spacing/2, 1*leg_spacing/2, leg_height/2
+#     # )
+#
+#     # leg1.translate(1*leg_spacing/2, 1*leg_spacing/2, oz+leg_height/2)
+#     # frame_legs.add_geometry(leg1)
+#
+#     for i in ((1, 1), (-1, 1), (-1, -1), (1, -1)):
+#         leg = create_cuboid(leg_width, leg_width, leg_height)
+#         leg.translate(i[0]*leg_spacing/2, i[1]*leg_spacing/2, leg_height/2)
+#         frame_legs.add_geometry(leg)
+#
+#     top = create_cuboid(top_side, top_side, top_height)
+#     top.translate(0, 0, leg_height+top_height/2)
+#     frame_top.add_geometry(top)
+#
+#     for frame in (frame_legs, frame_top):
+#         frame.translate(ox, oy, oz)
+#
+#     return frame_legs, frame_top
+#
+# def create_x_wall(ly=2., lz=2., ox=0., oy=0., oz=0.):
+#     wall_x = Face(Vertex([ox,  ly / 2 + oy,  lz / 2 + oz]),
+#                   Vertex([ox, -ly / 2 + oy,  lz / 2 + oz]),
+#                   Vertex([ox, -ly / 2 + oy, -lz / 2 + oz]),
+#                   Vertex([ox,  ly / 2 + oy, -lz / 2 + oz]))
+#     return wall_x
+#
+# def create_y_wall(lx=2., lz=2., ox=0., oy=0., oz=0.):
+#     wall_y = Face(Vertex([-lx / 2 + ox, oy,  lz / 2 + oz]),
+#                   Vertex([ lx / 2 + ox, oy,  lz / 2 + oz]),
+#                   Vertex([ lx / 2 + ox, oy, -lz / 2 + oz]),
+#                   Vertex([-lx / 2 + ox, oy, -lz / 2 + oz]))
+#     return wall_y
+#
+# def create_floor(ly=2, lz=2, ox=0, oy=0, oz=0):
+#     pass
+#     # wall_y = Face(Vertex([-(lx / 2 + ox), ly / 2 + oy, lz / 2 + oz]),
+#     #               Vertex([lx / 2 + ox, ly / 2 + oy, lz / 2 + oz]),
+#     #               Vertex([lx / 2 + ox, ly / 2 + oy, -(lz / 2 + oz)]),
+#     #               Vertex([-(lx / 2 + ox), ly / 2 + oy, -(lz / 2 + oz)]))
+#     # return wall_y
+#
+#
+# class VectorPlot:
+#     def __init__(self):
+#         # Define matplotlib plot structure
+#         self.fig = plt.figure(figsize=(15, 10.5))
+#         self.ax = mp3d.Axes3D(self.fig, auto_add_to_figure=False)
+#         self.fig.add_axes(self.ax)
+#         self.ax.clear()
+#
+#         self.default_plotting_settings()
+#
+#         self.plotscale = 1.1
+#         self.ax.set_xlim(-4 / 3 * self.plotscale, 4 / 3 * self.plotscale)
+#         self.ax.set_ylim(-4 / 3 * self.plotscale, 4 / 3 * self.plotscale)
+#         self.ax.set_zlim(-self.plotscale, self.plotscale)
+#
+#         self.ax.set_xlabel('x')
+#         self.ax.set_ylabel('y')
+#         self.ax.set_zlabel('z')
+#
+#         # Default camera view
+#         self.ax.view_init(elev=20, azim=-50)
+#
+#     def show(self):
+#         plt.show()
+#
+#     def set_plot_title(self, plot_title: str):
+#         self.ax.set_title(plot_title)
+#
+#     def default_plotting_settings(self):
+#         self.plot_settings = {
+#             # Tripod properties
+#             "show_tripod": True,  # If False, does not plot the tripod
+#             "tripod_scale": 1,  # Sets the scale of the tripod
+#             "plot_perpendiculars": True,  # Plot perpendiculars
+#
+#             # Vertex plotting properties:
+#             "vertexfill": True,  # If False, vertex will not be plotted
+#             "vertexcolour": "#000",  # Specifies the vertex colour
+#             "vertexsize": 10,  # Size of the plotted vertex
+#             "vertexalpha": 1,  # Opacity of the plotted vertex
+#
+#             # Face plotting properties:
+#             "linefill": True,  # If False, does not plot face lines
+#             "linecolour": "#000",  # Colour of face lines
+#             "linewidth": 2,  # Thickness of face lines
+#             "linealpha": 1,  # Opacity of face lines
+#             "facefill": True,  # If False, does not shade the face area
+#             "facecolour": "#555",  # Colour of the face area shading
+#             "facealpha": 1,  # Opacity of the face area shading
+#
+#             # Face perpendicular arrow plotting properties:
+#             "perpfill": False,  # If True, plot perpendiculars
+#             "perpcolour": "#888",  # Specifies the perp. arrow colour
+#             "perpscale": 1,  # Size of the plotted perp. arrow
+#             "perpalpha": 0.5,  # Opacity of the plotted perp. arrow
+#
+#             # Illumination:
+#             "illumination": False,  # If True, plots illumination intensity
+#             "ill_value": 0,  # Used to plot illumination intensity
+#             "ill_plane": None,  # If illumination is used, a plane
+#
+#             # Vector plotting properties:
+#             "vectorfill": True,  # If False, does not plot vector arrow
+#             "vectorcolour": "#000",  # Colour of vector arrow
+#             "vectoralpha": 1,  # Opacity of vector arrow
+#             "vectorscale": 1,  # Scale the whole vector by a constant
+#             "vectorratio": 0.15  # Vector arrow length ratio
+#         }
+#
+#     def plot_vector(self, tip, origin=(0, 0, 0), linewidth=1.5,
+#                     alpha=1, scaling=0.02, alr=0.1, color="purple"):
+#         plot_arrow(self.ax, origin, tip, linewidth=linewidth,
+#                    alpha=alpha, scaling=scaling, alr=alr, color=color)
+#
+#     def plot_global_tripod(self, scaling: float = None):
+#         if scaling is None:
+#             scaling = self.plotscale / 2
+#         plot_global_tripod(self.ax, scaling=scaling)
+#
+#     def plot_hhc_coils(self, coil_sides: list, coil_spacings: list,
+#                        coil_thickness: int = 5, coil_alpha: float = 0.5,
+#                        coil_colors=("#F00", "#0F0", "#00F")):
+#
+#         self.coil_sides = coil_sides
+#         self.coil_spacings = coil_spacings
+#
+#         # First make the cage elements
+#         cage_objects = create_hhc_elements(coil_sides, coil_spacings)
+#
+#         for coilX in cage_objects[0]:
+#             plot_face(self.ax, coilX, linecolour=coil_colors[0],
+#                       linewidth=coil_thickness, linealpha=coil_alpha,
+#                       facefill=False, vertexfill=False)
+#         for coilY in cage_objects[1]:
+#             plot_face(self.ax, coilY, linecolour=coil_colors[1],
+#                       linewidth=coil_thickness, linealpha=coil_alpha,
+#                       facefill=False, vertexfill=False)
+#         for coilZ in cage_objects[2]:
+#             plot_face(self.ax, coilZ, linecolour=coil_colors[2],
+#                       linewidth=coil_thickness, linealpha=coil_alpha,
+#                       facefill=False, vertexfill=False)
+#
+#     # Plot the lab walls
+#     def plot_x_wall(self, ly=2., lz=2., ox=0., oy=0., oz=0.,
+#                     linecolour="#333", linewidth=3, linealpha=0.4,
+#                     facefill=True, facealpha=0.25):
+#         face = create_x_wall(ly=ly, lz=lz, ox=ox, oy=oy, oz=oz)
+#         plot_face(self.ax, face,
+#                   linecolour=linecolour, linewidth=linewidth,
+#                   linealpha=linealpha, facefill=facefill, facealpha=facealpha,
+#                   vertexfill=False)
+#
+#     def plot_y_wall(self, lx=2., lz=2., ox=0., oy=0., oz=0.,
+#                     linecolour="#333", linewidth=3, linealpha=0.4,
+#                     facefill=True, facealpha=0.25):
+#         face = create_y_wall(lx=lx, lz=lz, ox=ox, oy=oy, oz=oz)
+#         plot_face(self.ax, face,
+#                   linecolour=linecolour, linewidth=linewidth,
+#                   linealpha=linealpha, facefill=facefill, facealpha=facealpha,
+#                   vertexfill=False)
+#
+#     # # TODO: Delete
+#     # def plot_emf(self, emf=None, linewidth=3,
+#     #              alpha=1, scaling=0.02, alr=0.2, color="orange"):
+#     #     if emf is None:
+#     #         emf = local_emf()
+#     #     self.plot_vector(emf, linewidth=linewidth,
+#     #                      alpha=alpha, scaling=scaling, alr=alr, color=color)
+#
+#     def plot_table(self):
+#         frame_legs, frame_top = create_table()
+#         plot_frame(self.ax, frame_legs,
+#                    show_tripod=False,
+#                    vertexfill=False,
+#                    vertexalpha=0,
+#                    linecolour="#CCC",
+#                    linealpha=0.3,
+#                    facecolour="#CCC",
+#                    facealpha=0.2,
+#                    )
+#         plot_frame(self.ax, frame_top,
+#                    show_tripod=False,
+#                    vertexfill=False,
+#                    vertexalpha=0,
+#                    linecolour="#C95",
+#                    linealpha=0.3,
+#                    facecolour="#C95",
+#                    facealpha=0.2,
+#                    )
+#
+#     def autoplot(self,
+#                  tripod=True,
+#                  coils=False,
+#                  walls=False,
+#                  table=False,
+#                  # emf_vector=False,
+#                  delfipq=False,
+#                  cubesat3u=False,
+#                  cubesat12u=False):
+#         if tripod:
+#             self.plot_global_tripod()
+#         if coils:
+#             coil_sides = [1.85, 1.95, 2.05]
+#             coil_spacings = [1.0073, 1.0618, 1.1162]
+#             self.plot_hhc_coils(coil_sides, coil_spacings)
+#         if walls:
+#             self.plot_x_wall(3, 2, -1.5, 0, -0.1)
+#             self.plot_y_wall(3, 2, 0, 1.5, -0.1)
+#         if table:
+#             self.plot_table()
+#         # if emf_vector:
+#         #     self.plot_emf()
+#
+#

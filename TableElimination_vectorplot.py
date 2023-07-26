@@ -26,15 +26,8 @@ local_emf = np.dot(R_G2C, local_emf())
 
 # Filenames
 filenames = (
-    "./data/CoilsClose_2023-07-04_17.31.25.dat",
-    "./data/CoilsWide_2023-07-04_16.01.53.dat",
-    "./data/SpatialX0Y0_2023-07-12_14.15.31_SPARSE25.dat",  # Use this as control test
-)
-
-coil_spacing = (
-    ( 0.560,  0.560,  0.640),   # Coils CLOSE
-    (1.0073, 1.0618, 1.1162),   # Coils normal (ideal 0.5445 ratio)
-    ( 1.700,  1.700,  1.835),   # Coils WIDE
+    "./data/RackElimination_2023-07-04_12.51.32.dat",
+    "./data/RackEliminationControl_2023-07-03_13.00.00.dat"
 )
 
 # Pre-allocate storage lists
@@ -76,10 +69,9 @@ if easy_copy_paste_readout:
 
 # Vector plot
 plot_title = """
-    Average disturbance vectors for three coil configurations.
-    Measured on 04-07-2023, measurements each 45+ minutes
+    Average disturbance vectors with the storage rack present and removed
+    Measured on 03-07-2023 and 04-07-2023
     """
-
 vectorplot = VectorPlot()
 vectorplot.autoplot(tripod=True, coils=True, walls=True,
                     table=True)
@@ -88,11 +80,11 @@ for i in range(len(mean_data_n)):
     vectorplot.plot_vector(mean_data_n[i], color="black",
                            linewidth=3, alr=0.2)
 
-vectorplot.ax.text2D(0.2, 0.9, plot_title,
+vectorplot.ax.text2D(0.05, 0.9, plot_title,
                      fontsize=14,
                      multialignment="center",
                      transform=vectorplot.ax.transAxes)
 vectorplot.show()
-vectorplot.fig.savefig("./figures/CoilSpacing.png", dpi=150)
+vectorplot.fig.savefig("./figures/RackElimination.png", dpi=150)
 
 print("Elapsed time:", time()-time0)

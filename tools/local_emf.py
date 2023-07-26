@@ -1,3 +1,7 @@
+"""
+Convenience function for specifying local EMF.
+"""
+
 from numpy import array
 
 def local_emf():

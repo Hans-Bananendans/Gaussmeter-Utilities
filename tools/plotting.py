@@ -148,7 +148,7 @@ class TimeplotPyQt:
         self.save_plot_filename = plot_filename
         self.save_plot_width = width
 
-    def timeplot_pyqtgraph(self, data: list, drange = None):  # noqa
+    def timeplot_pyqtgraph(self, data: list, drange=None, verbose=0):
         """
         drange must be a list[float, float]
         """
@@ -201,11 +201,13 @@ class TimeplotPyQt:
             exporter = pg.exporters.ImageExporter(self.gl.scene())
             exporter.parameters()['width'] = self.save_plot_width
             exporter.export(self.save_plot_filename)
+            if verbose > 0:
+                print("Exported image as: {}".format(self.save_plot_filename))
 
         # Executing PyQtGraph
         pg.exec()
 
-    def timeplot_3axis_pyqtgraph(self, data: list):
+    def timeplot_3axis_pyqtgraph(self, data: list, verbose=0):
 
         # Ensure data is of the same length, and of the right type(s)
         for data_list in (data[1], data[2], data[3]):
@@ -320,12 +322,14 @@ class TimeplotPyQt:
             exporter = pg.exporters.ImageExporter(self.gl.scene())
             exporter.parameters()['width'] = self.save_plot_width
             exporter.export(self.save_plot_filename)
+            if verbose > 0:
+                print("Exported image as: {}".format(self.save_plot_filename))
 
         # Executing PyQtGraph
         pg.exec()
 
 
-class SpectralplotPyQt:
+class SpectralPlotPyQt:
     def __init__(self):
         self.app = pg.mkQApp("Spectralplot")
         self.view = pg.GraphicsView()
@@ -465,7 +469,7 @@ class SpectralplotPyQt:
         self.save_plot_filename = plot_filename
         self.save_plot_width = width
 
-    def spectralplot_pyqtgraph(self, data: list):
+    def spectralplot_pyqtgraph(self, data: list, verbose=0):
 
         # Ensure data is of the same length, and of the right type(s)
         # for data_list in (data[1], data[2], data[3]):
@@ -554,13 +558,14 @@ class SpectralplotPyQt:
             exporter = pg.exporters.ImageExporter(self.gl.scene())
             exporter.parameters()['width'] = self.save_plot_width
             exporter.export(self.save_plot_filename)
-            print("Exported file {}.".format(self.save_plot_filename))
+            if verbose > 0:
+                print("Exported image as: {}".format(self.save_plot_filename))
 
         # Executing PyQtGraph
         pg.exec()
 
 
-    def spectralplot_pyqtgraph_separateaxes(self, data: list):
+    def spectralplot_pyqtgraph_separateaxes(self, data: list, verbose=0):
 
         # Ensure data is of the same length, and of the right type(s)
         # for data_list in (data[1], data[2], data[3]):
@@ -625,6 +630,8 @@ class SpectralplotPyQt:
             exporter = pg.exporters.ImageExporter(self.gl.scene())
             exporter.parameters()['width'] = self.save_plot_width
             exporter.export(self.save_plot_filename)
+            if verbose > 0:
+                print("Exported image as: {}".format(self.save_plot_filename))
 
         # Executing PyQtGraph
         pg.exec()
