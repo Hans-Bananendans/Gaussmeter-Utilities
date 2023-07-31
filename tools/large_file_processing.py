@@ -498,7 +498,7 @@ class DataProcessor:
         for n in range(len(intervals)):
 
             # Generate output file name
-            filename_n = multipart_filenames(self.filename, n+1)[n]
+            filename_n = multipart_filenames(self.filename, len(intervals))[n]
             # filename_n = self.filename[:-4] \
             #              + str("_s{}of{}".format(n+1, len(intervals))) \
             #              + self.filename[-4:]
@@ -517,6 +517,8 @@ class DataProcessor:
             if verbose >= 2:
                 print("Saved {} MB to file: {}"
                       .format(len_interval/1024**2, filename_n))
+
+        return len(intervals)
 
 
 

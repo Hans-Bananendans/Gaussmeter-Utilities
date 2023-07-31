@@ -78,7 +78,7 @@ def data_add_vector(data, vector):
             data[i_data+1][i] += vector[i_data]
     return data
 
-def multipart_filenames(filename_base, n_files):
+def multipart_filenames(filename_base, n_files, breakpoint=4):
     """
     Generates filenames for multipart file splits. This function is here so
      that it can both be used for generating these names in other functions,
@@ -88,9 +88,9 @@ def multipart_filenames(filename_base, n_files):
     filenames = []
     for i in range(1, n_files+1):
         filenames.append(
-            filename_base[:-4]
+            filename_base[:-breakpoint]
             + "_s{}of{}".format(i, n_files)
-            + filename_base[-4:]
+            + filename_base[-breakpoint:]
         )
     return filenames
 

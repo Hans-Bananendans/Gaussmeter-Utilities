@@ -760,6 +760,7 @@ class VectorPlot:
         plt.show()
 
     def set_plot_title(self, plot_title: str):
+        # TODO: Broken at the moment
         self.ax.set_title(plot_title)
 
     def default_plotting_settings(self):

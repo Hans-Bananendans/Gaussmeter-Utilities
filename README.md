@@ -5,12 +5,17 @@ Data acquisition and processing utilities for an AlphaLab analog milligauss mete
 ## What is this?
 This repository contains a number of software utilities used to collect analog magnetometer data, to process this data, and to generate useful visualizations.
 
-Examples:
+This repository is primarily a place to store working files for a one-time analysis. The files are left in their original state, so that the work may be reproduced at a later date. However, the tools contained within may be of more general use.
 
- `TimeplotPyQt`
+### Examples
+ `VectorPlot`
+![alt text](./figures/disturbance_visualization.png?raw=true)
+
+ `TimePlotPyQt`
 ![alt text](./other/high_resolution_export.png?raw=true)
 
-This repository is primarily a place to store working files for a one-time analysis. The files are left in their original state, so that the work may be reproduced at a later date. However, the tools contained within may be of more general use. Here is a brief overview of the repository contents:
+ `SpectralPlotPyQt`
+![alt text](./figures/Lights%20On%20-%20Spectral%20Plot.png?raw=true)
 
 ## Notable files
 ```markdown
@@ -21,12 +26,12 @@ Gaussmeter-Utilities
 │   ├── Test Results.ods            Overview of test results
 ├── tools/                          Data acquisition and processing tools
 │   ├── cp.py                       Merged Cube Projector framework file (all classes)
-│   ├── downsample.py               Tool for taking a .dat dataset and downsample it by an integer factor
 │   ├── GaussmeterLib.py            Various utilities
 │   ├── GaussmeterRecorder.py       CLI tool for data acquisition with NI-DAQmx
 │   ├── large_file_processing.py    Processing tool that can cut up >RAM datasets into smaller chunks. These chunks can be automatically synchronized to whole hours using Unix timestamps.
 │   ├── local_emf.py                Convenience file for manually specifying the local Earth Magnetic Field vector
 │   ├── plotting.py                 Plotting classes TimePlotPyQT, SpectralPlotPyQt, VectorPlot
+├── disturbance_visualization.py    Easy-to-run 3D visualization of disturbance vector
 ├── *.py                            Test-specific data processing file
 ```
 
