@@ -6,13 +6,10 @@ Instructions:
 
 # Imports ====================================================================
 import numpy as np
-import pyqtgraph as pg
-import pyqtgraph.exporters
-from datetime import datetime
 from time import time
 
 from tools.local_emf import local_emf
-from tools.plotting import TimeplotPyQt, VectorPlot
+from tools.plotting import VectorPlot
 from tools.GaussmeterLib import (
     EulerRotation,
     read_data,

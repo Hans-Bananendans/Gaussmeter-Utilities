@@ -35,6 +35,7 @@ plot_title = """
 
 vp = VectorPlot()
 vp.ax.view_init(elev=20, azim=-65.5)
+# vp.ax.view_init(elev=90, azim=-90)
 
 # Vector scaling factor: 1 uT corresponds to 2 cm on the 3D plot
 vscf = 0.02
@@ -81,4 +82,5 @@ vp.ax.text(0, 1.5, 0, "Back wall", color="#555", ha="center")
 
 vp.show()
 
-vp.fig.savefig("./figures/disturbance_visualization.png", dpi=150)
+vp.fig.savefig("./figures/disturbance_visualization1.png", dpi=150)
+# vp.fig.savefig("./figures/disturbance_visualization2.png", dpi=150)

@@ -43,6 +43,7 @@ class TimeplotPyQt:
         self.force_identical_scale = True
         self.pen_alpha = 0.8
 
+        self.pen_width = 1
         pen_colors = ((255,   0,   0),
                       (  0, 255,   0),
                       (  0,  75, 255))
@@ -113,6 +114,13 @@ class TimeplotPyQt:
                       (  0,   0, 255))
         """
         self.generate_pens(pen_colors)
+
+    def set_pen_width(self, pen_width):
+        """
+        Set width of the pen in pixels.
+        Default: 1
+        """
+        self.pen_width = pen_width
 
     def set_label_fill(self, rgba):
         """
@@ -188,7 +196,7 @@ class TimeplotPyQt:
                 title=plotlabels[i],
                 x=data[0],
                 y=np.array(data_array),
-                pen=pg.mkPen(color=self.pen_rgba[i]),
+                pen=pg.mkPen(color=self.pen_rgba[i], width=self.pen_width),
                 xmin=self.trange[0],
                 xmax=self.trange[1],
                 # axisItems={'bottom': pg.DateAxisItem()}
@@ -253,7 +261,7 @@ class TimeplotPyQt:
                 title=plotlabels[i],
                 x=data[0],
                 y=np.array(data_array),
-                pen=pg.mkPen(color=self.pen_rgba[i]),
+                pen=pg.mkPen(color=self.pen_rgba[i], width=self.pen_width),
                 xmin=self.trange[0],
                 xmax=self.trange[1],
                 axisItems={'bottom': pg.DateAxisItem()}
@@ -265,7 +273,7 @@ class TimeplotPyQt:
             infline_min = pg.InfiniteLine(
                 angle=0,
                 label="Min: {value:.2f} uT",
-                pen=pg.mkPen(color=self.pen_rgb[i]),
+                pen=pg.mkPen(color=self.pen_rgb[i], width=self.pen_width),
                 pos=min(data[i+1]),
                 movable=False,
                 labelOpts={"position": 0.05,
@@ -278,7 +286,7 @@ class TimeplotPyQt:
             infline_max = pg.InfiniteLine(
                 angle=0,
                 label="Max: {value:.2f} uT",
-                pen=pg.mkPen(color=self.pen_rgb[i]),
+                pen=pg.mkPen(color=self.pen_rgb[i], width=self.pen_width),
                 pos=max(data[i+1]),
                 movable=False,
                 labelOpts={"position": 0.05,

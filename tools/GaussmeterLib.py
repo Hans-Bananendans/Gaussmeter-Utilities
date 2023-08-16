@@ -1,4 +1,7 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/python3
+"""
+GaussmeterLib.py
+"""
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,7 +11,7 @@ from scipy.fft import fft, fftfreq
 from datetime import datetime
 import pyqtgraph as pg
 # from pyqtgraph.Qt import QtCore
-from scipy.signal import savgol_filter
+from scipy.signal import savgol_filter, filtfilt, iirnotch
 from scipy.fft import rfft, rfftfreq
 from copy import deepcopy
 from time import time
@@ -248,6 +251,27 @@ def data_rfft(data, sample_rate=None):
     # return [f, x_t, y_t, z_t]
 
 
+def data_notch_filter(data, fn, fs, Q=None, nw=1):
+    # If no notch quality factor Q is given, determine an appropriate one
+    # using equation 15 from Nguyen2018 (DOI:
+    # It will choose a Q with significant attenuation only in a range of
+    # 0.5 Hz around the notch. This can be changed by setting "nw"
+    if Q is None:
+        Q = np.tan(np.pi*fn/fs) / (np.tan(np.pi*(fn+nw/2)/fs) - np.tan(np.pi*(fn-nw/2)/fs))
+
+    if Q <= 0:
+        raise ValueError(f"Q = {Q} but Q must be larger than 0")
+
+    # Create narrow-band, second-order notch filter at 50 Hz
+    b, a = iirnotch(fn, Q, fs)
+
+    # Apply filter to data signals, using Gustafsson method for better
+    # performance at the edges
+    for i in (1, 2, 3):
+        data[i] = filtfilt(b, a, data[i], method="gust")
+
+    return data
+
 # def vector_normal_distribution(vectors: list):
 #     mean_x = 0
 #     mean_y = 0
@@ -301,7 +325,6 @@ def data_normal_distribution(data: list):
 
 def data_savgol_filter(data, windowlength, polyorder=4):
     # Smooths three data channels using a Savitzky-Golay filter
-    # Data must be in type A
     x_filtered = savgol_filter(data[1], windowlength, polyorder)
     y_filtered = savgol_filter(data[2], windowlength, polyorder)
     z_filtered = savgol_filter(data[3], windowlength, polyorder)
