@@ -41,7 +41,7 @@ Are you here to replicate parts of this analysis, or improve the tools? Here are
 2. (recommended) Open a new `venv`.
 3. Clone this repository.
 4. Install the Python dependencies listed in `requirements.txt`.
-5. If you wish to regenerate the plots, first download the magnetic test data files from the server and place them in the cloned repository, in a folder named `data`. The total size of the data files is 43 GB. If you have trouble getting access to the measurement data, send me a message.
+5. If you wish to regenerate the plots, first download the magnetic test data files from the server and place them in the cloned repository, in a folder named `/data/`. All files placed in this folder are automatically ignored by git. The total size of the data files is 43 GB. If you have trouble getting access to the measurement data, send me a message.
 6. Consult `/other/Test Results.ods` to see a comprehensive list of performed tests, outcome, and what files are relevant.
 7. If you are missing certain files, check to see if any of the scripts in the root containing the word `preprocessing` can generate the files for you.
 8. Filenames containing the term `_SPARSE` indicate that the contents of the file have been downsampled. 
