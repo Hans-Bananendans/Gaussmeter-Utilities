@@ -42,7 +42,7 @@ plotset = {
     }
 }
 
-_selection = "unfiltered"
+_selection = "sgf"
 
 time0 = time()
 # Rotation matrix from geographic frame to cage frame
@@ -73,7 +73,7 @@ if not plotset[_selection]["skip"][1]:
     # Apply notch filter at 50 Hz
     nw = 1  # Approximate width of peak in Hz based on spectral plot
     fs = 2500
-    fn = (50, 100, 150, 200, 250)
+    fn = (50, 100, 150, 200, 250, 500, 750, 1000)
     for fn_i in fn:
         data_d = data_notch_filter(data_d, fn_i, fs, nw=nw)
         data_n = data_notch_filter(data_n, fn_i, fs, nw=nw)
