@@ -75,9 +75,6 @@ for i, filename in enumerate(filenames):
     # Distribution properties of normalized disturbance datapoints in C frame
     mean_data_n[i], sd_data_n[i] = data_normal_distribution(data)
 
-# for i in range(len(filenames)):
-#     print("|B|_{} = {} uT". format(i, round(np.linalg.norm(mean_data_n[i]), 3)))
-
 # Easy Copy-Paste readout
 easy_copy_paste_readout = False
 if easy_copy_paste_readout:
@@ -99,7 +96,6 @@ if easy_copy_paste_readout:
     print(" ")
 
 # Vector plot
-
 plot_title = """
     Average disturbance vectors at different locations in the HHC. \n
     Measured on 12-07-2023, measurements each 45+ minutes"""

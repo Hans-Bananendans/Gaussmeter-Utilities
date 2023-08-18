@@ -12,8 +12,8 @@ support, and the fact that the DAQ device that this code was used with
 Windows.
 """
 _name = "Gaussmeter Recorder"
-_version = "1.2.0"
-_version_date = "26-07-2023"
+_version = "1.2.1"
+_version_date = "18-08-2023"
 
 # %% IMPORT DEPENDENCIES
 import sys
@@ -120,8 +120,8 @@ class DataRecorder:
                               sr: int = __sr,
                               n_buffers: int = __n_buffers,
                               buffer_size: int = __buffer_size,
-                              v_min: int = __v_min,
-                              v_max: int = __v_max,
+                              v_min: float = __v_min,
+                              v_max: float = __v_max,
                               allow_n_samples_rounding: bool =
                               __allow_n_samples_rounding
                               ):
@@ -223,7 +223,7 @@ class DataRecorder:
     # %% GENERATION METHODS
 
     def generate_n_samples(self):
-        self.__n_samples = self.__recording_time * self.__sr
+        self.__n_samples = int(self.__recording_time * self.__sr)
 
     def generate_filename(self):
         # Remove space characters from name to avoid complications
@@ -269,50 +269,15 @@ class DataRecorder:
             output_file.write(header)
         output_file.close()
 
-    # def generate_header_old(self):
-    #     """
-    #     Writes a static header to a specified output file.
-    #     Will create the file if it does not exist.
-    #     """
-    #     # TODO: Expand function to display recording properties card
-    #     with open(self.__filename, 'x') as output_file:
-    #         # Write header
-    #         header = f"{'!H time UNIX [s]'.rjust(14, ' ')} {'Bx [uT]'.rjust(10, ' ')} {'Bx [uT]'.rjust(10, ' ')} {'Bx [uT]'.rjust(10, ' ')} \n"
-    #         output_file.write(header)
-    #     output_file.close()
-
     def progress_update(self, t0, n_loops, i_loop):
         t_elapsed = time() - t0
-        t_eta = t_elapsed * (n_loops) / (i_loop + 1)
+        t_eta = t_elapsed * n_loops / (i_loop + 1)
 
         print("Progress:",
               str(Fore.GREEN + str(i_loop + 1).rjust(3, " ") + " / " + str(n_loops)),
               "  |  Time elapsed:", Fore.CYAN + str(round(t_elapsed)),
               "s - remaining:", Fore.CYAN + str(round(t_eta - t_elapsed)), "s")
 
-    def generate_simulation_summary(self):
-        if self.__verbose >= 4:
-            print("generate_simulation_summary() called.")
-
-        # now = time()
-        # n_samples = duration*sr
-        # name = GenerateFilename(name, duration, sr, folder=folder, filetype=filetype, verbose=verbose)
-
-        # estimated_filesize = EstimateFilesize(n_samples)
-        # estimated_memory = EstimateMemory(n_samples, sr)
-
-        # print(Fore.CYAN + " ==== Simulation summary ==== ")
-        # print("Selected duration:       ", duration, "s")
-        # print("Sample rate:             ", sr, "S/s")
-        # print("Total samples:           ", n_samples, "samples")
-        # print("Estimated memory usage:  ", estimated_memory, "MB")  # TODO add memory estimation
-        # print("Estimated file size:     ", estimated_filesize, "MB")
-        # print(" ")
-        # print("Current time:            ", datetime.utcfromtimestamp(now).strftime('%Y-%m-%d_%H.%M.%S'))
-        # print("Expected time at finish: ", datetime.utcfromtimestamp(now+duration).strftime('%Y-%m-%d_%H.%M.%S'))
-        # print(" ")
-        # print("Saving to:", str(Fore.CYAN + name))
-        # print(Fore.CYAN + " ============================ ")
 
     # %% RECORDING METHODS
 
@@ -427,20 +392,8 @@ class DataRecorder:
 
         # Initializing global buffer objects:
         global buffers, tstart_buffers
-        # buffers = []
-        # tstart_buffers = []
         buffers, tstart_buffers = self.setup_buffers()
         len_buffers = len(buffers)
-
-        # global buffer1, buffer2, buffers
-        # buffer1 = np.zeros((BUFFER_SIZE*N_CHANNELS,), dtype=np.float64)
-        # buffer2 = np.zeros((BUFFER_SIZE*N_CHANNELS,), dtype=np.float64)
-        # buffers = [buffer1, buffer2]
-        # len_buffers = len(buffers)
-        # global tstart_buffer1, tstart_buffer2, tstart_buffers
-        # tstart_buffer1 = 0.0
-        # tstart_buffer2 = 0.0
-        # tstart_buffers = [tstart_buffer1, tstart_buffer2]
 
         # Declaration of Task handle object
         taskHandle = PyDAQmx.TaskHandle()
@@ -651,7 +604,6 @@ def print_version(version, date, name, verbose=0):
 if __name__ == "__main__":
     
     #%% ARGUMENT PARSING
-    
     parser = ArgumentParser(
             prog="GaussmeterRecorder",
             description="CLI interface for long-term Gaussmeter recorder tool.")
@@ -672,12 +624,6 @@ if __name__ == "__main__":
     parser.add_argument("-ft", "--filetype", nargs=1, type=str, action="store",
                         default=[".dat"],
                         help="Specify a file extension for the output data file. (default: .dat)")
-    # parser.add_argument("-rp", "--readout-period", nargs=1, type=float, action="store",
-    #                     default=[0.0],
-    #                     help="Period in seconds to print readout values to the console. A frequency of 0 seconds means periodic readouts are OFF (default: 0)")
-    # parser.add_argument("-f", "--folder", nargs=1, type=str, action="store",
-    #                     default=[".\\recorded\\"],
-    #                     help="Intended to specify a folder, but DOES NOT WORK CURRENTLY.")
 
     # DEBUGGING ARGUMENTS
     parser.add_argument("--echo", nargs=1, type=str, action="store",
@@ -713,21 +659,12 @@ if __name__ == "__main__":
         recording_time = args.record[0]
         sr = args.record[1]
         n_samples = recording_time*sr
-        
-        # if verbose > 0:
-        #     SimulationSummary(duration, sr, 
-        #                           name=args.name[0],
-        #                           folder=args.folder[0],
-        #                           filetype=args.filetype[0], 
-        #                           verbose=verbose)
-        
+
         if not args.skipconfirm:
             carryon = input("Start simulation? (Y/N)")
             if carryon not in ["Y", "y", "yes", "Yes", "YES"]:
                 print("Program cancelled.")
-                sys.exit(0) # Not great but it works here.
-        # if args.test_progress_bar:
-            # TestProgressBar(n_samples, sr)
+                sys.exit(0)  # Not great but it works here.
         
         # Create DataRecorder object
         recorder = DataRecorder(verbose=verbose)
@@ -750,12 +687,6 @@ if __name__ == "__main__":
         recorder.set_recording_time(recording_time)
         
         recorder.record(predelay=args.predelay[0])
-        
-        # Problem: how to deterministically determine filename here?
-        # data = ReadData(recording_file)
-        
-        # print(f"Mean = {round(1000*rate_mean,3)} ms, sd = {round(1000*rate_sd,3)} ms")
-        # print(f"Target = {1000/sr}, delay factor = {round(100*(rate_mean*sr-1),1)} %")
 
     # Print version if requested:
     if args.version:

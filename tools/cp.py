@@ -19,9 +19,7 @@ cp_utilities.py
 
 import numpy as np
 from numpy import sin, cos
-from copy import deepcopy
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 import mpl_toolkits.mplot3d as mp3d
 
 class Vertex:

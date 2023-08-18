@@ -8,7 +8,7 @@ resolution is in hours.
 import numpy as np
 import pyqtgraph as pg
 import pyqtgraph.exporters
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 
 # Fill up an array with 24 unix timestamps, spaced hourly, with the first one
 # being at the start of the Weekday4 test, namely 2023-13-07 09:00:00.000
@@ -18,7 +18,6 @@ start = datetime(2023, 7, 13, 9, 0, 0, 0)  # Look, I know the timezones will be
                                            # fucked, but it's to unfuck the
                                            # horizontal axis of pyqtgraph.
 timestamps.append(start.timestamp())
-
 i = 1
 while i < 24:
     timestamps.append(timestamps[-1]+3600)
@@ -163,6 +162,7 @@ class SDPlotPyQt:
 
         # Executing PyQtGraph
         pg.exec()
+
 
 plot_title = """
 <h3><b> Standard deviation of hourly batches of data for each axis.

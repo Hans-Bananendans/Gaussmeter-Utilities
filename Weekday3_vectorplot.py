@@ -79,9 +79,6 @@ for i, filename in enumerate(filenames):
     # Distribution properties of normalized disturbance datapoints in C frame
     mean_data_n[i], sd_data_n[i] = data_normal_distribution(data)
 
-# for i in range(len(filenames)):
-#     print("|B|_{} = {} uT". format(i, round(np.linalg.norm(mean_data_n[i]), 3)))
-
 # Easy Copy-Paste readout
 easy_copy_paste_readout = True
 if easy_copy_paste_readout:

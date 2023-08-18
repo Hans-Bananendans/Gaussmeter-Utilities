@@ -479,47 +479,9 @@ class SpectralPlotPyQt:
 
     def spectralplot_pyqtgraph(self, data: list, verbose=0):
 
-        # Ensure data is of the same length, and of the right type(s)
-        # for data_list in (data[1], data[2], data[3]):
-        #     assert len(data[0]) == len(data_list)
-        #     assert type(data_list) in (list, np.ndarray)
-        #     assert type(data_list[0]) in (float, int, np.float64)
-
         self.trange = [data[0][0], data[0][-1]]
         self.drange = [min([min(data[1]), min(data[2]), min(data[3])]),
                        max([max(data[1]), max(data[2]), max(data[3])])]
-
-        # self.xrange = [min(data[1]), max(data[1])]
-        # self.yrange = [min(data[2]), max(data[2])]
-        # self.zrange = [min(data[3]), max(data[3])]
-        #
-        # # Force identical scale if set to True:
-        # if self.force_identical_scale is True:
-        #     xmid = self.xrange[0] + (self.xrange[1] - self.xrange[0]) / 2
-        #     ymid = self.yrange[0] + (self.yrange[1] - self.yrange[0]) / 2
-        #     zmid = self.zrange[0] + (self.zrange[1] - self.zrange[0]) / 2
-        #
-        #     xscale = self.xrange[1] - self.xrange[0]
-        #     yscale = self.yrange[1] - self.yrange[0]
-        #     zscale = self.zrange[1] - self.zrange[0]
-        #
-        #     scale = max([xscale, yscale, zscale])
-        #
-        #     self.xrange = [xmid - scale / 2, xmid + scale / 2]
-        #     self.yrange = [ymid - scale / 2, ymid + scale / 2]
-        #     self.zrange = [zmid - scale / 2, zmid + scale / 2]
-
-        # Start constructing plot ============================================
-
-        # p2 = self.view.addPlot(title="Multiple curves")
-        # p2.plot(np.random.normal(size=100), pen=(255, 0, 0), name="Red curve")
-        # p2.plot(np.random.normal(size=110) + 5, pen=(0, 255, 0), name="Green curve")
-        # p2.plot(np.random.normal(size=120) + 10, pen=(0, 0, 255), name="Blue curve")
-        #
-        # Title and side label
-        # self.gl.addLabel(self.plot_title, col=1, colspan=2)
-        # self.gl.nextRow()
-        # self.gl.addLabel(self.side_label, angle=-90, rowspan=1)
 
         # Data plots
         plotlabels = ("X", "Y", "Z")
@@ -534,16 +496,6 @@ class SpectralPlotPyQt:
         p.showGrid(x=self.grids, y=self.grids)
         p.setLogMode(x=True, y=True)
 
-        # p.plot(
-        #     title=plotlabels[0],
-        #     x=data[0],
-        #     y=data[1],
-        #     pen=pg.mkPen(color=self.pen_rgba[0]),
-        #     xmin=self.trange[0],
-        #     xmax=self.trange[1],
-        #     # axisItems={'bottom': pg.DateAxisItem()}
-        # )
-
         for i, data_array in enumerate((data[1], data[2], data[3])):
             p.plot(
                 title=plotlabels[i],
@@ -553,11 +505,6 @@ class SpectralPlotPyQt:
                 xmin=self.trange[0],
                 xmax=self.trange[1],
             )
-
-        # self.gl.nextRow()
-        # self.gl.addLabel(self.bottom_label, col=1, colspan=2)
-
-        # print(self.pen_rgba)
 
         self.view.show()
 
@@ -574,12 +521,6 @@ class SpectralPlotPyQt:
 
 
     def spectralplot_pyqtgraph_separateaxes(self, data: list, verbose=0):
-
-        # Ensure data is of the same length, and of the right type(s)
-        # for data_list in (data[1], data[2], data[3]):
-        #     assert len(data[0]) == len(data_list)
-        #     assert type(data_list) in (list, np.ndarray)
-        #     assert type(data_list[0]) in (float, int, np.float64)
 
         self.trange = [data[0][0], data[0][-1]]
         self.xrange = [min(data[1]), max(data[1])]
